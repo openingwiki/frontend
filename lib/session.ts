@@ -4,20 +4,36 @@
 // don't see cookie values directly — we just forward req.headers.cookie back to
 // the API on every call. This module wraps the boilerplate of "read cookie, ask
 // /me, optionally fetch mod-queue count" so pages can stay terse.
+//
+// Dev convenience:
+//   MOCK_AUTH=true  — returns a fake logged-in user when the Go API is offline.
+//                     Set in .env.local. Never enable in production.
 
 import type { GetServerSidePropsContext } from "next";
 import { getMe, getModerationQueueCount } from "./api";
-import type { User } from "./types";
+import { ensureCsrfCookie } from "./api-proxy";
+import { mockGroups, mockMe } from "./mock";
+import type { Group, User } from "./types";
 
 export interface SessionData {
   user: User | null;
   cookie?: string;
   modQueueCount: number;
+  mockGroups?: Group[];
 }
 
 export async function loadSession(ctx: GetServerSidePropsContext): Promise<SessionData> {
+  await ensureCsrfCookie(ctx.req, ctx.res).catch(() => {});
+
   const cookie = ctx.req.headers.cookie ?? undefined;
-  const user = await getMe(cookie).catch(() => null);
+  let user = await getMe(cookie).catch(() => null);
+
+  const isMockAuth =
+    process.env.MOCK_AUTH === "true" && process.env.NODE_ENV !== "production";
+
+  if (!user && isMockAuth) {
+    user = mockMe();
+  }
 
   let modQueueCount = 0;
   if (user && (user.role === "moderator" || user.role === "admin")) {
@@ -26,10 +42,14 @@ export async function loadSession(ctx: GetServerSidePropsContext): Promise<Sessi
       .catch(() => 0);
   }
 
-  return { user, cookie, modQueueCount };
+  return {
+    user,
+    cookie,
+    modQueueCount,
+    mockGroups: isMockAuth && user ? mockGroups() : undefined,
+  };
 }
 
-// Plain-object form safe to pass as page props (no Date/undefined surprises).
 export function serializeSession(s: SessionData) {
   return {
     user: s.user,

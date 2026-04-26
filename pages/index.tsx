@@ -1,6 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Layout from "@/components/Layout";
 import SearchHeader from "@/components/SearchHeader";
+import SearchResults from "@/components/SearchResults";
 import SortBar from "@/components/SortBar";
 import OpeningCard from "@/components/OpeningCard";
 import Pagination from "@/components/Pagination";
@@ -8,10 +9,16 @@ import GroupsPanel from "@/components/GroupsPanel";
 import AuthCard from "@/components/AuthCard";
 import SubmitCard from "@/components/SubmitCard";
 
-import { getStats, listMyGroups, listOpenings } from "@/lib/api";
+import { getStats, listMyGroups, listOpenings, searchAll } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import { mockGroups, mockOpenings, mockStats } from "@/lib/mock";
-import type { Group, OpeningPage, SortKey, User } from "@/lib/types";
+import type {
+  Group,
+  OpeningPage,
+  SearchResults as SearchResultsT,
+  SortKey,
+  User,
+} from "@/lib/types";
 
 interface Props {
   user: User | null;
@@ -22,6 +29,7 @@ interface Props {
   q: string;
   sort: SortKey;
   apiOnline: boolean;
+  search: SearchResultsT | null;
 }
 
 const VALID_SORTS: SortKey[] = ["newest", "top", "most_rated"];
@@ -32,14 +40,10 @@ function pickSort(value: unknown): SortKey {
     : "newest";
 }
 
-// SSR entry point — runs on the Node.js Next.js process for every request,
-// reads the session cookie from the incoming request, and forwards it to the
-// Go API. Falls back to fixtures while the API is still being built so the
-// design is viewable end-to-end.
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await loadSession(ctx);
 
-  const q = typeof ctx.query.q === "string" ? ctx.query.q : "";
+  const q = typeof ctx.query.q === "string" ? ctx.query.q.trim() : "";
   const sort = pickSort(ctx.query.sort);
   const page = Number(ctx.query.page ?? 1) || 1;
 
@@ -47,6 +51,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   let stats = { openings: 0, anime: 0, singers: 0 };
   let groups: Group[] = [];
   let apiOnline = true;
+  let search: SearchResultsT | null = null;
 
   try {
     [openingsPage, stats] = await Promise.all([
@@ -54,15 +59,18 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       getStats(session.cookie).catch(() => ({ openings: 0, anime: 0, singers: 0 })),
     ]);
     if (session.user) {
-      groups = await listMyGroups(session.cookie).catch(() => []);
+      groups = session.mockGroups ?? await listMyGroups(session.cookie).catch(() => []);
+    }
+    if (q) {
+      // Cross-entity matches (anime + singers) shown above the openings list.
+      // Failures here are non-fatal — we still render the openings results.
+      search = await searchAll({ q, cookie: session.cookie }).catch(() => null);
     }
   } catch {
-    // Go API unreachable — fall back to fixtures so the design renders during
-    // local dev without a running backend. Real production must reach the API.
     apiOnline = false;
     openingsPage = mockOpenings();
     stats = mockStats();
-    groups = mockGroups();
+    groups = session.mockGroups ?? (session.user ? mockGroups() : []);
   }
 
   return {
@@ -75,6 +83,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       q,
       sort,
       apiOnline,
+      search,
     },
   };
 };
@@ -94,6 +103,7 @@ export default function HomePage({
   q,
   sort,
   apiOnline,
+  search,
 }: Props) {
   const totalPages = Math.max(1, Math.ceil(page.total / page.per_page));
 
@@ -106,6 +116,10 @@ export default function HomePage({
           singers={stats.singers}
           q={q}
         />
+
+        {search && (
+          <SearchResults q={q} anime={search.anime} singers={search.singers} />
+        )}
 
         <SortBar total={page.total} sort={sort} basePath="/" q={q || undefined} />
 
@@ -136,16 +150,8 @@ export default function HomePage({
         </div>
 
         {!apiOnline && (
-          <p
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 11,
-              color: "var(--fg-4)",
-              padding: "16px 0 32px",
-              textAlign: "center",
-            }}
-          >
-            ⚠ Go API unreachable at <code>{process.env.API_BASE_URL}</code> — showing fixtures.
+          <p className="mock-notice">
+            &#9888; Go API unreachable &#8212; showing fixtures.
           </p>
         )}
       </div>

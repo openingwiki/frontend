@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const apiOrigin = process.env.API_BASE_URL || "http://72.56.5.153:8080";
+
 const nextConfig = {
   reactStrictMode: true,
   // Allow YouTube thumbnails when we wire real data in
@@ -10,7 +12,15 @@ const nextConfig = {
   },
   // Public env consumed by lib/api.ts
   env: {
-    API_BASE_URL: process.env.API_BASE_URL || "http://localhost:8080",
+    API_BASE_URL: apiOrigin,
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: `${apiOrigin}/api/v1/:path*`,
+      },
+    ];
   },
 };
 

@@ -1,4 +1,5 @@
 import type { GetServerSideProps } from "next";
+import { useRouter } from "next/router";
 import Layout from "@/components/Layout";
 import { loadSession } from "@/lib/session";
 import type { User } from "@/lib/types";
@@ -10,7 +11,6 @@ interface Props {
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await loadSession(ctx);
-  // Already logged in → bounce home.
   if (session.user) {
     return { redirect: { destination: "/", permanent: false } };
   }
@@ -18,12 +18,18 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 };
 
 export default function LoginPage({ user, modQueueCount }: Props) {
+  const router = useRouter();
+  const next = typeof router.query.next === "string" ? router.query.next : "/";
+  const error = typeof router.query.error === "string" ? router.query.error : null;
+
   return (
     <Layout user={user} modQueueCount={modQueueCount} title="Log in · Opening Wiki">
       <div className="formpage">
         <h1>Log in</h1>
-        <p>Email + password — sessions are kept in a secure HTTP-only cookie.</p>
+        <p>Email + password, sessions are kept in a secure HTTP-only cookie.</p>
+        {error && <p className="mock-notice">{error}</p>}
         <form action="/api/auth/login" method="post">
+          <input type="hidden" name="next" value={next} />
           <div>
             <label htmlFor="email">Email</label>
             <input id="email" name="email" type="email" required autoComplete="email" />

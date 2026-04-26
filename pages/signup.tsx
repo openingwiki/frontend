@@ -1,4 +1,5 @@
 import type { GetServerSideProps } from "next";
+import { useRouter } from "next/router";
 import Layout from "@/components/Layout";
 import { loadSession } from "@/lib/session";
 import type { User } from "@/lib/types";
@@ -15,12 +16,18 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 };
 
 export default function SignupPage({ user, modQueueCount }: Props) {
+  const router = useRouter();
+  const next = typeof router.query.next === "string" ? router.query.next : "/";
+  const error = typeof router.query.error === "string" ? router.query.error : null;
+
   return (
     <Layout user={user} modQueueCount={modQueueCount} title="Sign up · Opening Wiki">
       <div className="formpage">
         <h1>Create your account</h1>
         <p>Rate openings, build groups, share public playlists.</p>
+        {error && <p className="mock-notice">{error}</p>}
         <form action="/api/auth/signup" method="post">
+          <input type="hidden" name="next" value={next} />
           <div>
             <label htmlFor="display_name">Display name</label>
             <input id="display_name" name="display_name" required maxLength={40} />
