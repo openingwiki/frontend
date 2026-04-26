@@ -2,25 +2,26 @@ import LiveSearchInput from "./LiveSearchInput";
 
 interface Props {
   total: number;
-  anime: number;
-  singers: number;
+  // Kept in the prop shape for callers that still pass them; not rendered
+  // now that anime/singer browse is hidden.
+  anime?: number;
+  singers?: number;
   q: string;
 }
 
-export default function SearchHeader({ total, anime, singers, q }: Props) {
+export default function SearchHeader({ total, q }: Props) {
   return (
     <div className="head">
       <h1>
         Anime <em>openings.</em>
       </h1>
       <p>
-        Community catalogue · {total.toLocaleString()} openings ·{" "}
-        {anime.toLocaleString()} anime · {singers.toLocaleString()} singers
+        Community catalogue · {total.toLocaleString()} openings.
       </p>
       <LiveSearchInput
         basePath="/"
         initialQ={q}
-        placeholder="Search by opening, anime, or singer…"
+        placeholder="Search openings by title…"
         ariaLabel="Search"
         showKbdBadge
       />

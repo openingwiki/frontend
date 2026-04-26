@@ -7,10 +7,8 @@ interface Props {
 }
 
 const NAV = [
-  { href: "/",        label: "Home",    match: (p: string) => p === "/" },
-  { href: "/anime",   label: "Anime",   match: (p: string) => p.startsWith("/anime") },
-  { href: "/singers", label: "Singers", match: (p: string) => p.startsWith("/singers") },
-  { href: "/groups",  label: "Groups",  match: (p: string) => p.startsWith("/groups") || p.startsWith("/g/") },
+  { href: "/",       label: "Home",   match: (p: string) => p === "/" },
+  { href: "/groups", label: "Groups", match: (p: string) => p.startsWith("/groups") || p.startsWith("/g/") },
 ];
 
 export default function Topbar({ user }: Props) {
@@ -38,8 +36,16 @@ export default function Topbar({ user }: Props) {
 
         <div className="top-right">
           {user ? (
-            <Link href="/me" className="btn ghost sm">
-              {user.display_name}
+            <Link href="/me" className="topbar-me">
+              <span className="topbar-avatar" aria-hidden>
+                {user.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={user.avatar_url} alt="" />
+                ) : (
+                  user.display_name.slice(0, 2).toUpperCase()
+                )}
+              </span>
+              <span className="topbar-name">{user.display_name}</span>
             </Link>
           ) : (
             <>

@@ -1,26 +1,57 @@
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { pushToast } from "@/lib/toast";
 import type { User } from "@/lib/types";
 
 interface Props {
   user: User | null;
 }
 
-type ResendState = "idle" | "sending" | "sent" | "error";
+const COOLDOWN_MS = 60_000;
+// Persisted across reloads so a user can't bypass the throttle by refreshing.
+// Key includes the userId so a different user on the same device starts fresh.
+const storageKey = (userId: string) => `ow_resend_until_${userId}`;
 
-// Renders two things tied to the email-verification flow:
-//   1. A persistent banner at the top of every page when the user is logged in
-//      but email_verified === false. The banner stays until the user follows
-//      the link in their inbox; the next SSR request reads the verified flag
-//      from /me and the banner drops out.
-//   2. A one-shot modal triggered by ?signup=pending after registration. The
-//      modal explains a confirmation link was emailed; dismissing it strips
-//      the query param so a refresh doesn't show it again.
+function readUntil(userId: string): number {
+  if (typeof window === "undefined") return 0;
+  const raw = window.localStorage.getItem(storageKey(userId));
+  if (!raw) return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function useResendCooldown(userId: string | null) {
+  const [until, setUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!userId) return;
+    setUntil(readUntil(userId));
+  }, [userId]);
+
+  useEffect(() => {
+    if (until <= now) return;
+    const t = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(t);
+  }, [until, now]);
+
+  const remaining = Math.max(0, until - now);
+  const start = useCallback(() => {
+    if (!userId) return;
+    const u = Date.now() + COOLDOWN_MS;
+    window.localStorage.setItem(storageKey(userId), String(u));
+    setUntil(u);
+    setNow(Date.now());
+  }, [userId]);
+
+  return { remaining, start };
+}
+
 export default function EmailVerificationBanner({ user }: Props) {
   const router = useRouter();
-  const [resendState, setResendState] = useState<ResendState>("idle");
-  const [resendError, setResendError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const { remaining, start } = useResendCooldown(user?.id ?? null);
 
   useEffect(() => {
     if (router.query.signup === "pending" && user && !user.email_verified) {
@@ -37,23 +68,39 @@ export default function EmailVerificationBanner({ user }: Props) {
     router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
   };
 
+  const cooldownActive = remaining > 0;
+  const cooldownSec = Math.ceil(remaining / 1000);
+
   const resend = async () => {
-    setResendState("sending");
-    setResendError(null);
+    if (sending || cooldownActive) return;
+    setSending(true);
     try {
       const res = await fetch("/api/auth/resend-verification", { method: "POST" });
       if (res.ok) {
-        setResendState("sent");
+        start();
+        pushToast({ kind: "success", message: "Verification link sent — check your inbox" });
       } else {
         const body = await res.json().catch(() => ({}));
-        setResendState("error");
-        setResendError(body?.error ?? "Could not resend. Try again later.");
+        pushToast({
+          kind: "error",
+          message: body?.error ?? "Could not resend. Try again shortly.",
+        });
+        // Still start a short cooldown on error so we don't hammer the server.
+        start();
       }
     } catch {
-      setResendState("error");
-      setResendError("Could not reach the server.");
+      pushToast({ kind: "error", message: "Could not reach the server." });
+    } finally {
+      setSending(false);
     }
   };
+
+  const buttonLabel = sending
+    ? "Sending…"
+    : cooldownActive
+      ? `Resend in ${cooldownSec}s`
+      : "Resend link";
+  const disabled = sending || cooldownActive;
 
   return (
     <>
@@ -65,30 +112,32 @@ export default function EmailVerificationBanner({ user }: Props) {
           type="button"
           className="verify-banner-resend"
           onClick={resend}
-          disabled={resendState === "sending" || resendState === "sent"}
+          disabled={disabled}
         >
-          {resendState === "sending" && "Sending…"}
-          {resendState === "sent" && "Link sent"}
-          {(resendState === "idle" || resendState === "error") && "Resend link"}
+          {buttonLabel}
         </button>
-        {resendState === "error" && resendError && <span className="verify-banner-error">{resendError}</span>}
       </div>
 
       {showModal && (
         <div className="verify-modal-backdrop" onClick={dismissModal}>
-          <div className="verify-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="verify-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2>Check your inbox</h2>
             <p>
-              We sent a confirmation link to <strong>{user.email}</strong>. Click it to activate your
-              account. Until then you can browse, but posting, rating, and group editing are blocked.
+              We sent a confirmation link to <strong>{user.email}</strong>. Click it to activate
+              your account. Until then you can browse, but posting, rating, and group editing
+              are blocked.
             </p>
             <div className="actions">
-              <button type="button" className="btn" onClick={resend} disabled={resendState === "sending"}>
-                {resendState === "sending" ? "Sending…" : resendState === "sent" ? "Link sent" : "Resend link"}
+              <button type="button" className="btn" onClick={resend} disabled={disabled}>
+                {buttonLabel}
               </button>
               <button type="button" className="btn primary" onClick={dismissModal}>Got it</button>
             </div>
-            {resendState === "error" && resendError && <p className="mock-notice">{resendError}</p>}
           </div>
         </div>
       )}

@@ -2,6 +2,7 @@ import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import Layout from "@/components/Layout";
 import GroupsPanel from "@/components/GroupsPanel";
+import AvatarManager from "@/components/AvatarManager";
 import { listMyGroups } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import type { Group, User } from "@/lib/types";
@@ -53,11 +54,6 @@ function formatJoined(iso: string): string {
   return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
 
 export default function ProfilePage({ user, modQueueCount, groups, apiOnline }: Props) {
   const totalOpenings = groups.reduce((sum, g) => sum + g.opening_count, 0);
@@ -76,9 +72,9 @@ export default function ProfilePage({ user, modQueueCount, groups, apiOnline }: 
         </div>
 
         <header className="profile-head">
-          <div className="profile-avatar" aria-hidden>
-            {initials(user.display_name)}
-          </div>
+          {/* Header avatar is the upload trigger — clicking it opens the
+              file picker; a small × on hover removes the existing image. */}
+          <AvatarManager user={user} variant="head" />
           <div className="profile-meta">
             <p className="entity-kind">Profile</p>
             <h1 className="entity-name">{user.display_name}</h1>

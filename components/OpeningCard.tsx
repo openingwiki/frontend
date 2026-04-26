@@ -40,9 +40,9 @@ export default function OpeningCard({ op, newLabel }: Props) {
             <Link href={`/openings/${op.id}`}>{op.title}</Link>
           </h3>
           <div className="op-meta">
-            <Link href={`/anime/${op.anime.id}`}>{op.anime.name}</Link>
+            <span>{op.anime.name}</span>
             <span className="sep"> · </span>
-            <Link href={`/singers/${op.singer.id}`}>{op.singer.name}</Link>
+            <span>{op.singer.name}</span>
           </div>
         </div>
         <div className="op-score">

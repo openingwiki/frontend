@@ -279,3 +279,111 @@ export function getModerationQueueCount(cookie?: string): Promise<{ count: numbe
     ),
   ).then((totals) => ({ count: totals.reduce((sum, value) => sum + value, 0) }));
 }
+
+export interface ListModerationQueueParams {
+  type: "opening" | "anime" | "singer";
+  page?: number;
+  pageSize?: number;
+  cookie?: string;
+}
+
+export function listModerationQueue(p: ListModerationQueueParams): Promise<{
+  items: any[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
+}> {
+  const qs = new URLSearchParams();
+  qs.set("type", p.type);
+  qs.set("page", String(p.page ?? 1));
+  qs.set("page_size", String(p.pageSize ?? 20));
+  return apiFetchList<any[]>(`/mod/queue?${qs.toString()}`, { cookie: p.cookie }).then(
+    (payload) => ({
+      items: payload.data,
+      total: payload.meta.total,
+      page: payload.meta.page,
+      per_page: payload.meta.page_size,
+      has_next: payload.meta.has_next,
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Comments — wired to:
+//   GET    /api/v1/openings/{id}/comments?page=&page_size=
+//   POST   /api/v1/openings/{id}/comments         (verified email required)
+//   PATCH  /api/v1/comments/{id}                  (author only)
+//   DELETE /api/v1/comments/{id}                  (author or moderator+)
+// ---------------------------------------------------------------------------
+
+export interface ListCommentsParams {
+  openingId: string;
+  page?: number;
+  pageSize?: number;
+  cookie?: string;
+}
+
+export function listOpeningComments(p: ListCommentsParams): Promise<{
+  items: import("./types").OpeningComment[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
+}> {
+  const qs = new URLSearchParams();
+  qs.set("page", String(p.page ?? 1));
+  qs.set("page_size", String(p.pageSize ?? 50));
+  return apiFetchList<import("./types").OpeningComment[]>(
+    `/openings/${encodeURIComponent(p.openingId)}/comments?${qs.toString()}`,
+    { cookie: p.cookie },
+  ).then((payload) => ({
+    items: payload.data,
+    total: payload.meta.total,
+    page: payload.meta.page,
+    per_page: payload.meta.page_size,
+    has_next: payload.meta.has_next,
+  }));
+}
+
+export function postOpeningComment(
+  openingId: string,
+  body: string,
+  cookie?: string,
+): Promise<import("./types").OpeningComment> {
+  return apiFetchData<import("./types").OpeningComment>(
+    `/openings/${encodeURIComponent(openingId)}/comments`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+      cookie,
+    },
+  );
+}
+
+export function updateOpeningComment(
+  commentId: string,
+  body: string,
+  cookie?: string,
+): Promise<import("./types").OpeningComment> {
+  return apiFetchData<import("./types").OpeningComment>(
+    `/comments/${encodeURIComponent(commentId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+      cookie,
+    },
+  );
+}
+
+export function deleteOpeningComment(
+  commentId: string,
+  cookie?: string,
+): Promise<void> {
+  return apiFetchData<void>(`/comments/${encodeURIComponent(commentId)}`, {
+    method: "DELETE",
+    cookie,
+  });
+}

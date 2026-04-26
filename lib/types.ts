@@ -11,6 +11,7 @@ export interface User {
   role: Role;
   created_at: string;
   email_verified: boolean;
+  avatar_url: string | null;
 }
 
 export interface Anime {
@@ -184,6 +185,66 @@ export interface GroupDetail {
   is_public: boolean;
   is_system_rated: boolean;
   share_slug: string | null;
-  owner: { id: string; display_name: string };
+  owner: { id: string; display_name: string; avatar_url?: string | null };
   openings: GroupOpening[];
+}
+
+// ---------------------------------------------------------------------------
+// Moderation queue
+// ---------------------------------------------------------------------------
+
+export type ModerationItemType = "opening" | "anime" | "singer";
+
+export interface ModerationSubmitter {
+  id: string;
+  display_name: string;
+}
+
+export interface ModerationItem {
+  id: string;
+  type: ModerationItemType;
+  status: SubmissionStatus;
+  submitted_at: string;
+  submitted_by: ModerationSubmitter | null;
+  // Set when type === "opening"
+  title?: string;
+  youtube_url?: string;
+  anime_name?: string;
+  singer_name?: string;
+  // Set when type === "anime" | "singer"
+  name?: string;
+}
+
+export interface ModerationQueuePage {
+  items: ModerationItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Comments (frontend types — backend endpoint TBD; see end of repo notes)
+// ---------------------------------------------------------------------------
+
+export interface OpeningComment {
+  id: string;
+  opening_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  author: {
+    id: string;
+    display_name: string;
+    role: Role;
+    avatar_url: string | null;
+  };
+}
+
+export interface OpeningCommentsPage {
+  items: OpeningComment[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
 }

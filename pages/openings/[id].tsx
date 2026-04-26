@@ -1,8 +1,15 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
-import { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import Layout from "@/components/Layout";
-import { getAdjacentOpenings, getMyRating, getOpening } from "@/lib/api";
+import RatingPopup from "@/components/RatingPopup";
+import CommentsSection from "@/components/CommentsSection";
+import {
+  getAdjacentOpenings,
+  getMyRating,
+  getOpening,
+  listOpeningComments,
+} from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import {
   mockAdjacentOpenings,
@@ -13,16 +20,13 @@ import type {
   AdjacentOpenings,
   Group,
   Opening,
-  RateResponse,
+  OpeningComment,
   SortKey,
   User,
   UserRating,
 } from "@/lib/types";
 import { youtubeEmbedURL } from "@/lib/youtube";
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
+import { pushToast } from "@/lib/toast";
 
 interface Props {
   user: User | null;
@@ -32,6 +36,8 @@ interface Props {
   embedUrl: string | null;
   adjacent: AdjacentOpenings;
   userRating: UserRating | null;
+  initialComments: OpeningComment[];
+  commentsAvailable: boolean;
   apiOnline: boolean;
 }
 
@@ -43,13 +49,14 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await loadSession(ctx);
   const id = ctx.params?.id as string;
 
-  // Context forwarded from the list page (e.g. ?sort=top&q=naruto)
   const sort = typeof ctx.query.sort === "string" ? (ctx.query.sort as SortKey) : undefined;
   const q = typeof ctx.query.q === "string" ? ctx.query.q : undefined;
 
   let opening: Opening | null = null;
   let adjacent: AdjacentOpenings = { prev: null, next: null };
   let userRating: UserRating | null = null;
+  let initialComments: OpeningComment[] = [];
+  let commentsAvailable = true;
   let apiOnline = true;
 
   try {
@@ -63,19 +70,27 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     if (session.user && opening) {
       userRating = await getMyRating(id, session.cookie).catch(() => null);
     }
+
+    // Comments are optional — backend endpoint may not be wired yet. We
+    // detect that here so the section can show "coming soon" instead of
+    // exploding the page render.
+    if (opening) {
+      try {
+        const res = await listOpeningComments({ openingId: id, cookie: session.cookie });
+        initialComments = res.items;
+      } catch {
+        commentsAvailable = false;
+      }
+    }
   } catch {
-    // API offline — fall back to fixtures
     apiOnline = false;
     opening = mockOpening(id);
     adjacent = mockAdjacentOpenings(id);
-    if (session.user && opening) {
-      userRating = mockUserRating(id);
-    }
+    if (session.user && opening) userRating = mockUserRating(id);
+    commentsAvailable = false;
   }
 
-  if (!opening) {
-    return { notFound: true };
-  }
+  if (!opening) return { notFound: true };
 
   return {
     props: {
@@ -86,100 +101,82 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       embedUrl: youtubeEmbedURL(opening.youtube_url),
       adjacent,
       userRating,
+      initialComments,
+      commentsAvailable,
       apiOnline,
     },
   };
 };
 
 // ---------------------------------------------------------------------------
-// Rating widget (client-side interactive)
+// "Add to group" sidebar — the rating itself moved into the popup, but the
+// group-add affordance still belongs in the sidebar.
 // ---------------------------------------------------------------------------
 
-const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
-interface RatingWidgetProps {
-  openingId: string;
-  initialScore: number | null;
-  initialAvg: number;
-  initialCount: number;
-  user: User | null;
-  groups: Group[];
-}
-
-function RatingWidget({
-  openingId,
-  initialScore,
-  initialAvg,
-  initialCount,
+function AddToGroupCard({
   user,
   groups,
-}: RatingWidgetProps) {
-  const [score, setScore] = useState<number | null>(initialScore);
-  const [hover, setHover] = useState<number | null>(null);
-  const [avg, setAvg] = useState(initialAvg);
-  const [count, setCount] = useState(initialCount);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [addedToGroup, setAddedToGroup] = useState<string | null>(null);
-  const [addingGroup, setAddingGroup] = useState(false);
+  openingId,
+}: {
+  user: User | null;
+  groups: Group[];
+  openingId: string;
+}) {
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [done, setDone] = useState<Set<string>>(new Set());
 
-  const handleRate = useCallback(
-    async (s: number) => {
-      if (!user || saving) return;
-      setSaving(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/rate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ opening_id: openingId, score: s }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const data: RateResponse = await res.json();
-        setScore(data.user_score);
-        setAvg(data.avg_rating);
-        setCount(data.rating_count);
-      } catch {
-        setError("Failed to save rating. Try again.");
-      } finally {
-        setSaving(false);
-      }
-    },
-    [openingId, user, saving],
-  );
-
-  const handleAddToGroup = useCallback(
+  const handleAdd = useCallback(
     async (groupId: string) => {
-      if (!user || addingGroup) return;
-      setAddingGroup(true);
+      if (!user || pendingId) return;
+      setPendingId(groupId);
       try {
-        await fetch("/api/group-add", {
+        const res = await fetch("/api/group-add", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ opening_id: openingId, group_id: groupId }),
         });
-        setAddedToGroup(groupId);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.error ?? `Add failed (${res.status})`);
+        }
+        setDone((prev) => new Set(prev).add(groupId));
+        pushToast({ kind: "success", message: "Added to group" });
+      } catch (err) {
+        pushToast({
+          kind: "error",
+          message: err instanceof Error ? err.message : "Could not add to group",
+        });
       } finally {
-        setAddingGroup(false);
+        setPendingId(null);
       }
     },
-    [openingId, user, addingGroup],
+    [openingId, user, pendingId],
   );
 
   if (!user) {
     return (
       <div className="panel rate-panel">
-        <div className="panel-head"><span>Rate this opening</span></div>
+        <div className="panel-head"><span>Save to a group</span></div>
         <div className="rate-body">
-          <p className="rate-hint">Log in to rate and add to your collections.</p>
+          <p className="rate-hint">Log in to add this opening to your collections.</p>
           <div style={{ display: "flex", gap: 8 }}>
-            <Link href="/login" className="btn ghost sm" style={{ flex: 1, justifyContent: "center" }}>
-              Log in
-            </Link>
-            <Link href="/signup" className="btn primary sm" style={{ flex: 1, justifyContent: "center" }}>
-              Sign up
-            </Link>
+            <Link href="/login" className="btn ghost sm" style={{ flex: 1, justifyContent: "center" }}>Log in</Link>
+            <Link href="/signup" className="btn primary sm" style={{ flex: 1, justifyContent: "center" }}>Sign up</Link>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (groups.length === 0) {
+    return (
+      <div className="panel rate-panel">
+        <div className="panel-head"><span>Your groups</span></div>
+        <div className="rate-body">
+          <p className="rate-hint">No groups yet.</p>
+          <Link href="/groups?new=1" className="btn primary sm" style={{ width: "100%", justifyContent: "center" }}>
+            Create one
+          </Link>
         </div>
       </div>
     );
@@ -187,60 +184,23 @@ function RatingWidget({
 
   return (
     <div className="panel rate-panel">
-      <div className="panel-head">
-        <span>Your rating</span>
-        {score !== null && (
-          <span style={{ color: "var(--accent)", fontFamily: "var(--sans)", fontWeight: 700 }}>
-            {score}
-            <em style={{ color: "var(--fg-4)", fontWeight: 400, fontSize: 10, fontFamily: "var(--mono)" }}>/10</em>
-          </span>
-        )}
-      </div>
+      <div className="panel-head"><span>Add to group</span></div>
       <div className="rate-body">
-        <div className="rate-stars">
-          {SCORES.map((s) => {
-            const active = hover !== null ? s <= hover : score !== null ? s <= score : false;
+        <div className="rate-group-list">
+          {groups.map((g) => {
+            const isDone = done.has(g.id);
             return (
               <button
-                key={s}
-                className={`rate-dot${active ? " on" : ""}`}
-                onMouseEnter={() => setHover(s)}
-                onMouseLeave={() => setHover(null)}
-                onClick={() => handleRate(s)}
-                disabled={saving}
-                aria-label={`Rate ${s} out of 10`}
+                key={g.id}
+                className={`rate-group-btn${isDone ? " done" : ""}`}
+                onClick={() => handleAdd(g.id)}
+                disabled={pendingId !== null || isDone}
               >
-                {s}
+                {isDone ? "✓ Added" : g.name}
               </button>
             );
           })}
         </div>
-
-        <div className="rate-aggregate">
-          <span className="rate-avg">{avg.toFixed(1)}</span>
-          <span className="rate-denom">/10</span>
-          <span className="rate-count">{count.toLocaleString()} ratings</span>
-        </div>
-
-        {error && <p className="rate-error">{error}</p>}
-
-        {groups.length > 0 && (
-          <div className="rate-groups">
-            <p className="rate-hint">Add to group</p>
-            <div className="rate-group-list">
-              {groups.map((g) => (
-                <button
-                  key={g.id}
-                  className={`rate-group-btn${addedToGroup === g.id ? " done" : ""}`}
-                  onClick={() => handleAddToGroup(g.id)}
-                  disabled={addingGroup || addedToGroup === g.id}
-                >
-                  {addedToGroup === g.id ? "✓ Added" : g.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -263,7 +223,6 @@ const NEXT_ICON = (
 
 function OpeningNav({ adjacent }: { adjacent: AdjacentOpenings }) {
   if (!adjacent.prev && !adjacent.next) return null;
-
   return (
     <nav className="op-nav">
       {adjacent.prev ? (
@@ -278,7 +237,6 @@ function OpeningNav({ adjacent }: { adjacent: AdjacentOpenings }) {
       ) : (
         <div />
       )}
-
       {adjacent.next ? (
         <Link href={`/openings/${adjacent.next.id}`} className="op-nav-btn next">
           <span className="op-nav-content right">
@@ -296,7 +254,7 @@ function OpeningNav({ adjacent }: { adjacent: AdjacentOpenings }) {
 }
 
 // ---------------------------------------------------------------------------
-// Page component
+// Page
 // ---------------------------------------------------------------------------
 
 export default function OpeningDetail({
@@ -307,9 +265,11 @@ export default function OpeningDetail({
   embedUrl,
   adjacent,
   userRating,
+  initialComments,
+  commentsAvailable,
   apiOnline,
 }: Props) {
-  const op = opening!; // guaranteed non-null (notFound otherwise)
+  const op = opening!;
 
   return (
     <Layout
@@ -319,7 +279,6 @@ export default function OpeningDetail({
       description={`${op.title} · ${op.anime.name} · ${op.singer.name}`}
     >
       <div className="wrap">
-        {/* Breadcrumb + quick prev/next */}
         <div className="detail-crumb">
           <Link href="/">← All openings</Link>
           <span style={{ flex: 1 }} />
@@ -336,7 +295,6 @@ export default function OpeningDetail({
         </div>
 
         <div className="detail-grid">
-          {/* ── Main column ───────────────────────────────────────────── */}
           <div>
             <div className="detail-video">
               {embedUrl ? (
@@ -355,21 +313,20 @@ export default function OpeningDetail({
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h1 className="detail-title">{op.title}</h1>
                 <div className="detail-sub">
-                  <Link href={`/anime/${op.anime.id}`} className="detail-link">
-                    {op.anime.name}
-                  </Link>
+                  <span className="detail-link">{op.anime.name}</span>
                   <span className="detail-sep"> · </span>
-                  <Link href={`/singers/${op.singer.id}`} className="detail-link">
-                    {op.singer.name}
-                  </Link>
+                  <span className="detail-link">{op.singer.name}</span>
                 </div>
               </div>
-              <div className="detail-score">
-                <div className="detail-score-n">
-                  {op.avg_rating.toFixed(1)}<em>/10</em>
-                </div>
-                <div className="detail-score-ct">{op.rating_count.toLocaleString()} ratings</div>
-              </div>
+              {/* Rating popup is anchored here — its trigger lives where the
+                  flat score number used to be. */}
+              <RatingPopup
+                openingId={op.id}
+                user={user}
+                initialAvg={op.avg_rating}
+                initialCount={op.rating_count}
+                initialUserScore={userRating?.score ?? null}
+              />
             </div>
 
             <div className="detail-attrs">
@@ -399,22 +356,20 @@ export default function OpeningDetail({
                 <span className="detail-attr-val">↗ Watch on YouTube</span>
               </a>
             </div>
+
+            <CommentsSection
+              openingId={op.id}
+              user={user}
+              initialComments={initialComments}
+              available={commentsAvailable}
+            />
           </div>
 
-          {/* ── Sidebar ───────────────────────────────────────────────── */}
           <aside className="side">
-            <RatingWidget
-              openingId={op.id}
-              initialScore={userRating?.score ?? null}
-              initialAvg={op.avg_rating}
-              initialCount={op.rating_count}
-              user={user}
-              groups={groups}
-            />
+            <AddToGroupCard user={user} groups={groups} openingId={op.id} />
           </aside>
         </div>
 
-        {/* Prev / Next full navigation bar */}
         <OpeningNav adjacent={adjacent} />
 
         {!apiOnline && (
