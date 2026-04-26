@@ -4,7 +4,7 @@
 // Mirrors group-add.ts.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { removeOpeningFromGroup } from "@/lib/api";
+import { ApiError, removeOpeningFromGroup } from "@/lib/api";
 
 export default async function handler(
   req: NextApiRequest,
@@ -25,7 +25,19 @@ export default async function handler(
   try {
     await removeOpeningFromGroup(opening_id, group_id, req.headers.cookie);
     return res.status(204).end();
-  } catch {
-    return res.status(503).json({ error: "Service temporarily unavailable" });
+  } catch (err) {
+    // Forward the actual backend error so the toast says something useful
+    // instead of a generic "Service temporarily unavailable".
+    if (err instanceof ApiError) {
+      let message = err.message;
+      try {
+        const parsed = JSON.parse(err.body) as { error?: { message?: string } };
+        if (parsed?.error?.message) message = parsed.error.message;
+      } catch {
+        if (err.body) message = err.body;
+      }
+      return res.status(err.status || 502).json({ error: message });
+    }
+    return res.status(502).json({ error: "Backend unreachable" });
   }
 }

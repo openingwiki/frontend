@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pushToast } from "@/lib/toast";
 import type { RateResponse, User } from "@/lib/types";
@@ -41,6 +42,7 @@ export default function RatingPopup({
   const [avg, setAvg] = useState(initialAvg);
   const [count, setCount] = useState(initialCount);
   const [saving, setSaving] = useState(false);
+  const router = useRouter();
 
   const anchorRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +83,9 @@ export default function RatingPopup({
         setCount(data.rating_count);
         pushToast({ kind: "success", message: `Rated ${data.user_score}/10` });
         setTimeout(() => setOpen(false), 250);
+        // Backend auto-adds the opening to the user's "Rated" system group on
+        // every upsert. Re-run SSR so GroupAddMenu picks up the membership.
+        router.replace(router.asPath, undefined, { scroll: false });
       } catch (err) {
         pushToast({
           kind: "error",
@@ -90,8 +95,39 @@ export default function RatingPopup({
         setSaving(false);
       }
     },
-    [openingId, user, saving],
+    [openingId, user, saving, router],
   );
+
+  const clear = useCallback(async () => {
+    if (!user || saving || score === null) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/rate?opening_id=${encodeURIComponent(openingId)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? `Clear failed (${res.status})`);
+      }
+      const data: RateResponse = await res.json();
+      setScore(null);
+      setHover(null);
+      setAvg(data.avg_rating);
+      setCount(data.rating_count);
+      pushToast({ kind: "success", message: "Rating cleared" });
+      setTimeout(() => setOpen(false), 200);
+      // Backend also auto-removes from the "Rated" group on delete — re-SSR
+      // so GroupAddMenu picks the change up.
+      router.replace(router.asPath, undefined, { scroll: false });
+    } catch (err) {
+      pushToast({
+        kind: "error",
+        message: err instanceof Error ? err.message : "Could not clear rating",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }, [openingId, user, saving, score, router]);
 
   // Visual fill = hover when previewing, else committed score, else 0.
   const previewScore = hover ?? score ?? 0;
@@ -175,6 +211,19 @@ export default function RatingPopup({
           </span>
           {feel && <span className={`rate-feel rate-feel-${feel.tone}`}>{feel.text}</span>}
         </div>
+
+        {score !== null && (
+          <div className="rate-actions">
+            <button
+              type="button"
+              className="rate-clear"
+              onClick={clear}
+              disabled={saving}
+            >
+              {saving ? "Clearing…" : "Clear my rating"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

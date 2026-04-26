@@ -273,7 +273,12 @@ export default function CommentsSection({
       {available && user && !needsVerified && (
         <form className="comments-form" onSubmit={post}>
           <div className="comments-avatar" aria-hidden>
-            {initials(user.display_name)}
+            {user.avatar_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.avatar_url} alt="" />
+            ) : (
+              initials(user.display_name)
+            )}
           </div>
           <div className="comments-form-body">
             <textarea

@@ -7,7 +7,7 @@
 // Response:      204 No Content  |  { error: string }
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { addOpeningToGroup } from "@/lib/api";
+import { addOpeningToGroup, ApiError } from "@/lib/api";
 
 export default async function handler(
   req: NextApiRequest,
@@ -26,16 +26,22 @@ export default async function handler(
     return res.status(400).json({ error: "group_id is required" });
   }
 
-  const cookie = req.headers.cookie;
-
   try {
-    await addOpeningToGroup(opening_id, group_id, cookie);
+    await addOpeningToGroup(opening_id, group_id, req.headers.cookie);
     return res.status(204).end();
-  } catch {
-    // In dev/mock mode — pretend it worked so the UI flow is testable
-    if (process.env.NODE_ENV !== "production") {
-      return res.status(204).end();
+  } catch (err) {
+    // Surface the real backend status + message so the toast says something
+    // useful (e.g. "Rated group is not manually editable" vs a generic 503).
+    if (err instanceof ApiError) {
+      let message = err.message;
+      try {
+        const parsed = JSON.parse(err.body) as { error?: { message?: string } };
+        if (parsed?.error?.message) message = parsed.error.message;
+      } catch {
+        if (err.body) message = err.body;
+      }
+      return res.status(err.status || 502).json({ error: message });
     }
-    return res.status(503).json({ error: "Service temporarily unavailable" });
+    return res.status(502).json({ error: "Backend unreachable" });
   }
 }

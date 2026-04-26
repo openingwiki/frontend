@@ -109,12 +109,20 @@ async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
     const body = await res.text().catch(() => "");
     throw new ApiError(res.status, `${path} -> ${res.status} ${res.statusText}`, body);
   }
-  return (await res.json()) as T;
+  // 204 No Content (and other empty-body 2xx) — return undefined as T
+  // instead of crashing on JSON.parse(""). Callers that don't await a body
+  // (DELETE endpoints) tolerate undefined, callers that do still get JSON.
+  if (res.status === 204) return undefined as unknown as T;
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("json")) return undefined as unknown as T;
+  const text = await res.text();
+  if (text.length === 0) return undefined as unknown as T;
+  return JSON.parse(text) as T;
 }
 
 async function apiFetchData<T>(path: string, opts: FetchOpts = {}): Promise<T> {
-  const payload = await apiFetch<ApiDataEnvelope<T>>(path, opts);
-  return payload.data;
+  const payload = await apiFetch<ApiDataEnvelope<T> | undefined>(path, opts);
+  return (payload ? payload.data : undefined) as T;
 }
 
 async function apiFetchList<T>(path: string, opts: FetchOpts = {}): Promise<ApiListEnvelope<T>> {
@@ -211,6 +219,22 @@ export function rateOpening(payload: RatePayload, cookie?: string): Promise<Rate
     avg_rating: data.avg_rating,
     rating_count: data.rating_count,
     user_score: data.viewer_rating,
+  }));
+}
+
+// Clears the viewer's rating for an opening — backend returns the fresh
+// aggregates so the UI can stay in sync without a follow-up GET. Also
+// auto-removes the opening from the user's "Rated" system group server-side.
+export function deleteRating(openingId: string, cookie?: string): Promise<RateResponse> {
+  return apiFetchData<any>(`/openings/${encodeURIComponent(openingId)}/rating`, {
+    method: "DELETE",
+    cookie,
+  }).then((data) => ({
+    avg_rating: data?.avg_rating ?? 0,
+    rating_count: data?.rating_count ?? 0,
+    // viewer_rating comes back as null/undefined after delete — surface as 0
+    // so the popup widget can clean its state.
+    user_score: 0,
   }));
 }
 

@@ -7,6 +7,7 @@ import { listModerationQueue } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import type { ModerationItem, ModerationItemType, User } from "@/lib/types";
 import { pushToast } from "@/lib/toast";
+import { youtubeThumbnail } from "@/lib/youtube";
 
 interface Props {
   user: User;
@@ -97,65 +98,86 @@ function formatDate(iso: string): string {
 }
 
 function ItemCard({ item }: { item: ModerationItem }) {
+  const isOpening = item.type === "opening";
+  const thumb = isOpening && item.youtube_url ? youtubeThumbnail(item.youtube_url) : null;
+  const title = isOpening ? item.title : item.name;
+
   return (
-    <li className="mod-item">
-      <div className="mod-item-head">
-        <span className="mod-item-type">{item.type}</span>
-        <span className="mod-item-date">{formatDate(item.submitted_at)}</span>
+    <li className="mod-card">
+      {/* Left: visual — YouTube thumbnail for openings, fallback tile for
+          anime/singer (cover images aren't sent in the queue payload). */}
+      <div className="mod-card-thumb" aria-hidden>
+        {thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumb} alt="" loading="lazy" />
+        ) : (
+          <span className="mod-card-thumb-fallback">
+            {(title ?? item.type).slice(0, 2).toUpperCase()}
+          </span>
+        )}
+        <span className={`mod-card-pill mod-card-pill-${item.type}`}>{item.type}</span>
       </div>
 
-      {item.type === "opening" ? (
-        <>
-          <h3 className="mod-item-title">{item.title}</h3>
-          <p className="mod-item-meta">
-            {item.anime_name} · {item.singer_name}
+      {/* Right: meta + actions */}
+      <div className="mod-card-body">
+        <div className="mod-card-head">
+          <h3 className="mod-card-title">{title ?? "Untitled"}</h3>
+          <span className="mod-card-when">{formatDate(item.submitted_at)}</span>
+        </div>
+
+        {isOpening && (
+          <p className="mod-card-meta">
+            <span className="mod-card-meta-k">Anime</span>
+            <span className="mod-card-meta-v">{item.anime_name ?? "—"}</span>
+            <span className="mod-card-sep">·</span>
+            <span className="mod-card-meta-k">Singer</span>
+            <span className="mod-card-meta-v">{item.singer_name ?? "—"}</span>
           </p>
-          {item.youtube_url && (
-            <a
-              className="mod-item-link"
-              href={item.youtube_url}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              ↗ Open on YouTube
-            </a>
-          )}
-        </>
-      ) : (
-        <h3 className="mod-item-title">{item.name}</h3>
-      )}
-
-      <p className="mod-item-by">
-        {item.submitted_by ? (
-          <>
-            Submitted by <strong>{item.submitted_by.display_name}</strong>
-          </>
-        ) : (
-          <em>Submitted by unknown user</em>
         )}
-      </p>
 
-      <div className="mod-item-actions">
-        <form action="/api/mod/decide" method="post" className="mod-form">
-          <input type="hidden" name="type" value={item.type} />
-          <input type="hidden" name="id" value={item.id} />
-          <input type="hidden" name="action" value="approve" />
-          <button type="submit" className="btn primary sm">Approve</button>
-        </form>
+        <p className="mod-card-by">
+          {item.submitted_by ? (
+            <>
+              Submitted by <strong>{item.submitted_by.display_name}</strong>
+            </>
+          ) : (
+            <em>Submitted by unknown user</em>
+          )}
+        </p>
 
-        <form action="/api/mod/decide" method="post" className="mod-form mod-form-reject">
-          <input type="hidden" name="type" value={item.type} />
-          <input type="hidden" name="id" value={item.id} />
-          <input type="hidden" name="action" value="reject" />
-          <input
-            type="text"
-            name="reason"
-            maxLength={200}
-            placeholder="Reason (optional)"
-            className="mod-reason"
-          />
-          <button type="submit" className="btn ghost sm mod-reject-btn">Reject</button>
-        </form>
+        {isOpening && item.youtube_url && (
+          <a
+            className="mod-card-link"
+            href={item.youtube_url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            ↗ Open video on YouTube
+          </a>
+        )}
+
+        <div className="mod-card-actions">
+          <form action="/api/mod/decide" method="post" className="mod-form">
+            <input type="hidden" name="type" value={item.type} />
+            <input type="hidden" name="id" value={item.id} />
+            <input type="hidden" name="action" value="approve" />
+            <button type="submit" className="btn primary sm">✓ Approve</button>
+          </form>
+
+          <form action="/api/mod/decide" method="post" className="mod-form mod-form-reject">
+            <input type="hidden" name="type" value={item.type} />
+            <input type="hidden" name="id" value={item.id} />
+            <input type="hidden" name="action" value="reject" />
+            <input
+              type="text"
+              name="reason"
+              maxLength={200}
+              placeholder="Reason (optional)"
+              className="mod-reason"
+            />
+            <button type="submit" className="btn ghost sm mod-reject-btn">✕ Reject</button>
+          </form>
+        </div>
       </div>
     </li>
   );

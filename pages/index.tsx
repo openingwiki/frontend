@@ -106,15 +106,9 @@ export default function HomePage({
           q={q}
         />
 
-        <div className="page-grid page-grid-left">
-          <aside className="side side-left">
-            {user ? <GroupsPanel groups={groups} /> : <AuthCard />}
-            <SubmitCard authed={!!user} />
-          </aside>
-
+        <div className="page-grid">
           <div>
-            {/* Sort sits at the top of the openings column — directly to the
-                right of the Your Groups panel, above the video grid. */}
+            {/* Sort dropdown sits at the top of the openings column. */}
             <SortBar total={page.total} sort={sort} basePath="/" q={q || undefined} />
 
             <div className="cat">
@@ -134,6 +128,11 @@ export default function HomePage({
               query={{ q: q || undefined, sort: sort !== "newest" ? sort : undefined }}
             />
           </div>
+
+          <aside className="side">
+            {user ? <GroupsPanel groups={groups} /> : <AuthCard />}
+            <SubmitCard authed={!!user} />
+          </aside>
         </div>
 
         {!apiOnline && (

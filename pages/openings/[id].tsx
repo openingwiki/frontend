@@ -1,13 +1,15 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
-import { useCallback, useState } from "react";
 import Layout from "@/components/Layout";
 import RatingPopup from "@/components/RatingPopup";
 import CommentsSection from "@/components/CommentsSection";
+import GroupAddMenu from "@/components/GroupAddMenu";
 import {
   getAdjacentOpenings,
+  getMyGroup,
   getMyRating,
   getOpening,
+  listMyGroups,
   listOpeningComments,
 } from "@/lib/api";
 import { loadSession } from "@/lib/session";
@@ -26,12 +28,14 @@ import type {
   UserRating,
 } from "@/lib/types";
 import { youtubeEmbedURL } from "@/lib/youtube";
-import { pushToast } from "@/lib/toast";
 
 interface Props {
   user: User | null;
   modQueueCount: number;
   groups: Group[];
+  // IDs of the user's groups that already contain this opening — computed
+  // server-side by fetching each /me/groups/{id} in parallel.
+  initialMemberships: string[];
   opening: Opening | null;
   embedUrl: string | null;
   adjacent: AdjacentOpenings;
@@ -56,6 +60,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   let adjacent: AdjacentOpenings = { prev: null, next: null };
   let userRating: UserRating | null = null;
   let initialComments: OpeningComment[] = [];
+  let groups: Group[] = [];
+  const initialMemberships: string[] = [];
   let commentsAvailable = true;
   let apiOnline = true;
 
@@ -68,7 +74,31 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     ]);
 
     if (session.user && opening) {
-      userRating = await getMyRating(id, session.cookie).catch(() => null);
+      // Fetch the user's actual groups so the "Save to groups" menu in the
+      // sidebar shows real options. We also fetch each group's openings list
+      // in parallel to compute which ones already contain this opening, so
+      // the menu can render ✓ markers and toggle correctly.
+      [userRating, groups] = await Promise.all([
+        getMyRating(id, session.cookie).catch(() => null),
+        session.mockGroups
+          ? Promise.resolve(session.mockGroups)
+          : listMyGroups(session.cookie).catch(() => [] as Group[]),
+      ]);
+
+      if (groups.length > 0) {
+        const details = await Promise.all(
+          groups.map((g) =>
+            getMyGroup(g.id, session.cookie)
+              .then((d) => ({ id: g.id, openings: d.openings }))
+              .catch(() => ({ id: g.id, openings: [] as { id: string }[] })),
+          ),
+        );
+        for (const d of details) {
+          if (d.openings.some((op) => op.id === id)) {
+            initialMemberships.push(d.id);
+          }
+        }
+      }
     }
 
     // Comments are optional — backend endpoint may not be wired yet. We
@@ -87,6 +117,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     opening = mockOpening(id);
     adjacent = mockAdjacentOpenings(id);
     if (session.user && opening) userRating = mockUserRating(id);
+    groups = session.mockGroups ?? [];
     commentsAvailable = false;
   }
 
@@ -96,7 +127,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     props: {
       user: session.user,
       modQueueCount: session.modQueueCount,
-      groups: session.mockGroups ?? [],
+      groups,
+      initialMemberships,
       opening,
       embedUrl: youtubeEmbedURL(opening.youtube_url),
       adjacent,
@@ -107,104 +139,6 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     },
   };
 };
-
-// ---------------------------------------------------------------------------
-// "Add to group" sidebar — the rating itself moved into the popup, but the
-// group-add affordance still belongs in the sidebar.
-// ---------------------------------------------------------------------------
-
-function AddToGroupCard({
-  user,
-  groups,
-  openingId,
-}: {
-  user: User | null;
-  groups: Group[];
-  openingId: string;
-}) {
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const [done, setDone] = useState<Set<string>>(new Set());
-
-  const handleAdd = useCallback(
-    async (groupId: string) => {
-      if (!user || pendingId) return;
-      setPendingId(groupId);
-      try {
-        const res = await fetch("/api/group-add", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ opening_id: openingId, group_id: groupId }),
-        });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.error ?? `Add failed (${res.status})`);
-        }
-        setDone((prev) => new Set(prev).add(groupId));
-        pushToast({ kind: "success", message: "Added to group" });
-      } catch (err) {
-        pushToast({
-          kind: "error",
-          message: err instanceof Error ? err.message : "Could not add to group",
-        });
-      } finally {
-        setPendingId(null);
-      }
-    },
-    [openingId, user, pendingId],
-  );
-
-  if (!user) {
-    return (
-      <div className="panel rate-panel">
-        <div className="panel-head"><span>Save to a group</span></div>
-        <div className="rate-body">
-          <p className="rate-hint">Log in to add this opening to your collections.</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Link href="/login" className="btn ghost sm" style={{ flex: 1, justifyContent: "center" }}>Log in</Link>
-            <Link href="/signup" className="btn primary sm" style={{ flex: 1, justifyContent: "center" }}>Sign up</Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (groups.length === 0) {
-    return (
-      <div className="panel rate-panel">
-        <div className="panel-head"><span>Your groups</span></div>
-        <div className="rate-body">
-          <p className="rate-hint">No groups yet.</p>
-          <Link href="/groups?new=1" className="btn primary sm" style={{ width: "100%", justifyContent: "center" }}>
-            Create one
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="panel rate-panel">
-      <div className="panel-head"><span>Add to group</span></div>
-      <div className="rate-body">
-        <div className="rate-group-list">
-          {groups.map((g) => {
-            const isDone = done.has(g.id);
-            return (
-              <button
-                key={g.id}
-                className={`rate-group-btn${isDone ? " done" : ""}`}
-                onClick={() => handleAdd(g.id)}
-                disabled={pendingId !== null || isDone}
-              >
-                {isDone ? "✓ Added" : g.name}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Prev / Next navigation bar
@@ -261,6 +195,7 @@ export default function OpeningDetail({
   user,
   modQueueCount,
   groups,
+  initialMemberships,
   opening,
   embedUrl,
   adjacent,
@@ -366,7 +301,12 @@ export default function OpeningDetail({
           </div>
 
           <aside className="side">
-            <AddToGroupCard user={user} groups={groups} openingId={op.id} />
+            <GroupAddMenu
+              user={user}
+              groups={groups}
+              openingId={op.id}
+              initialMemberships={initialMemberships}
+            />
           </aside>
         </div>
 
