@@ -458,6 +458,123 @@ footer a:hover { color: var(--fg-2); }
   padding: 16px 0 32px; text-align: center;
 }
 
+/* ── Anime / Singer entity page ─────────────────────────────────────────── */
+.entity-head {
+  display: flex; align-items: flex-end; gap: 24px;
+  padding: 28px 0 28px;
+}
+.entity-cover {
+  width: 140px; height: 140px; flex-shrink: 0;
+  border-radius: 12px; border: 1px solid var(--line);
+  background: var(--bg-2); overflow: hidden;
+  display: grid; place-items: center;
+}
+.entity-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.entity-cover-fallback {
+  font-family: var(--sans); font-weight: 800; font-size: 38px;
+  letter-spacing: -0.02em; color: var(--fg-4);
+}
+.entity-head-meta { min-width: 0; }
+.entity-kind {
+  font-family: var(--mono); font-size: 11px; color: var(--accent);
+  letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 8px;
+}
+.entity-name {
+  font-size: 36px; font-weight: 800; letter-spacing: -0.03em;
+  line-height: 1.05; margin: 0 0 8px;
+}
+.entity-stat {
+  font-family: var(--mono); font-size: 12px; color: var(--fg-3); margin: 0;
+}
+
+.entity-empty {
+  font-family: var(--mono); font-size: 12px; color: var(--fg-3);
+  padding: 32px 0 64px; text-align: center;
+  border-top: 1px solid var(--line);
+}
+
+.entity-op-list {
+  list-style: none; padding: 0; margin: 0 0 64px;
+  border-top: 1px solid var(--line);
+}
+.entity-op-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto auto;
+  gap: 18px; align-items: center;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--line);
+  transition: background .1s;
+}
+.entity-op-row:hover { background: var(--bg-2); }
+.entity-op-title {
+  font-size: 15px; font-weight: 600; color: var(--fg);
+  letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.entity-op-title:hover { color: var(--accent); }
+.entity-op-related {
+  font-family: var(--mono); font-size: 12px; color: var(--fg-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.entity-op-related:hover { color: var(--fg); }
+.entity-op-score {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  font-family: var(--sans);
+}
+.entity-op-score-n { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.entity-op-score-d { font-family: var(--mono); font-size: 11px; color: var(--fg-4); }
+.entity-op-score-c { font-family: var(--mono); font-size: 11px; color: var(--fg-3); margin-left: 8px; }
+.entity-op-yt {
+  display: inline-grid; place-items: center;
+  width: 30px; height: 30px;
+  border: 1px solid var(--line); border-radius: 6px;
+  color: var(--fg-3);
+  transition: color .15s, border-color .15s, background .15s;
+}
+.entity-op-yt:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ── Search results panel (home page when ?q=) ──────────────────────────── */
+.search-panel {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  padding: 20px 0 8px;
+}
+.search-col {
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2);
+  overflow: hidden;
+}
+.search-col-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 14px; border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--fg-3);
+}
+.search-col-head .count { color: var(--fg); }
+.search-list { display: flex; flex-direction: column; }
+.search-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-bottom: 1px solid var(--line);
+  color: var(--fg-2);
+  transition: background .1s, color .1s;
+}
+.search-item:last-child { border-bottom: 0; }
+.search-item:hover { background: var(--bg-3); color: var(--fg); }
+.search-item-thumb {
+  width: 30px; height: 30px; flex-shrink: 0;
+  border-radius: 5px; border: 1px solid var(--line);
+  background: var(--bg-3); overflow: hidden;
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 11px; color: var(--fg-4);
+}
+.search-item-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.search-item-name {
+  font-size: 13px; min-width: 0; flex: 1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.search-empty {
+  padding: 18px 14px; font-family: var(--mono); font-size: 11px;
+  color: var(--fg-4); text-align: center;
+}
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 960px) {
   .page-grid { grid-template-columns: 1fr; }
@@ -465,6 +582,12 @@ footer a:hover { color: var(--fg-2); }
   .cat { grid-template-columns: repeat(2, 1fr); }
   .detail-grid { grid-template-columns: 1fr; }
   .op-nav { grid-template-columns: 1fr; }
+  .search-panel { grid-template-columns: 1fr; }
+  .entity-head { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .entity-cover { width: 96px; height: 96px; }
+  .entity-name { font-size: 28px; }
+  .entity-op-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+  .entity-op-related { grid-column: 1 / -1; }
 }
 @media (max-width: 600px) {
   :root { --pad: 20px; }

@@ -1,6 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Layout from "@/components/Layout";
 import SearchHeader from "@/components/SearchHeader";
+import SearchResults from "@/components/SearchResults";
 import SortBar from "@/components/SortBar";
 import OpeningCard from "@/components/OpeningCard";
 import Pagination from "@/components/Pagination";
@@ -8,10 +9,16 @@ import GroupsPanel from "@/components/GroupsPanel";
 import AuthCard from "@/components/AuthCard";
 import SubmitCard from "@/components/SubmitCard";
 
-import { getStats, listMyGroups, listOpenings } from "@/lib/api";
+import { getStats, listMyGroups, listOpenings, searchAll } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import { mockGroups, mockOpenings, mockStats } from "@/lib/mock";
-import type { Group, OpeningPage, SortKey, User } from "@/lib/types";
+import type {
+  Group,
+  OpeningPage,
+  SearchResults as SearchResultsT,
+  SortKey,
+  User,
+} from "@/lib/types";
 
 interface Props {
   user: User | null;
@@ -22,6 +29,7 @@ interface Props {
   q: string;
   sort: SortKey;
   apiOnline: boolean;
+  search: SearchResultsT | null;
 }
 
 const VALID_SORTS: SortKey[] = ["newest", "top", "most_rated"];
@@ -35,7 +43,7 @@ function pickSort(value: unknown): SortKey {
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await loadSession(ctx);
 
-  const q = typeof ctx.query.q === "string" ? ctx.query.q : "";
+  const q = typeof ctx.query.q === "string" ? ctx.query.q.trim() : "";
   const sort = pickSort(ctx.query.sort);
   const page = Number(ctx.query.page ?? 1) || 1;
 
@@ -43,6 +51,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   let stats = { openings: 0, anime: 0, singers: 0 };
   let groups: Group[] = [];
   let apiOnline = true;
+  let search: SearchResultsT | null = null;
 
   try {
     [openingsPage, stats] = await Promise.all([
@@ -51,6 +60,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     ]);
     if (session.user) {
       groups = session.mockGroups ?? await listMyGroups(session.cookie).catch(() => []);
+    }
+    if (q) {
+      // Cross-entity matches (anime + singers) shown above the openings list.
+      // Failures here are non-fatal — we still render the openings results.
+      search = await searchAll({ q, cookie: session.cookie }).catch(() => null);
     }
   } catch {
     apiOnline = false;
@@ -69,6 +83,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       q,
       sort,
       apiOnline,
+      search,
     },
   };
 };
@@ -79,7 +94,17 @@ function newLabel(submittedAt: string): string | undefined {
   return undefined;
 }
 
-export default function HomePage({ user, modQueueCount, page, groups, stats, q, sort, apiOnline }: Props) {
+export default function HomePage({
+  user,
+  modQueueCount,
+  page,
+  groups,
+  stats,
+  q,
+  sort,
+  apiOnline,
+  search,
+}: Props) {
   const totalPages = Math.max(1, Math.ceil(page.total / page.per_page));
 
   return (
@@ -91,6 +116,10 @@ export default function HomePage({ user, modQueueCount, page, groups, stats, q, 
           singers={stats.singers}
           q={q}
         />
+
+        {search && (
+          <SearchResults q={q} anime={search.anime} singers={search.singers} />
+        )}
 
         <SortBar total={page.total} sort={sort} basePath="/" q={q || undefined} />
 

@@ -99,3 +99,65 @@ export interface UserRating {
   score: number;
   rated_at: string;
 }
+
+// ---------------------------------------------------------------------------
+// Anime / Singer detail pages
+// ---------------------------------------------------------------------------
+
+// Trimmed-down opening shape returned in /anime/:id and /singers/:id payloads.
+export interface AnimeOpening {
+  id: string;
+  title: string;
+  youtube_url: string;
+  avg_rating: number;
+  rating_count: number;
+  approved_at: string | null;
+  singer: { id: string; name: string; cover_image_url: string | null };
+}
+
+export interface SingerOpening {
+  id: string;
+  title: string;
+  youtube_url: string;
+  avg_rating: number;
+  rating_count: number;
+  approved_at: string | null;
+  anime: { id: string; name: string; cover_image_url: string | null };
+}
+
+export interface AnimeDetail {
+  id: string;
+  name: string;
+  cover_image_url: string | null;
+  openings: AnimeOpening[];
+}
+
+export interface SingerDetail {
+  id: string;
+  name: string;
+  cover_image_url: string | null;
+  openings: SingerOpening[];
+}
+
+// ---------------------------------------------------------------------------
+// Cross-entity search
+// ---------------------------------------------------------------------------
+
+export interface SearchOpeningHit {
+  id: string;
+  title: string;
+  anime_name: string;
+  singer_name: string;
+}
+
+export interface SearchEntityHit {
+  id: string;
+  name: string;
+  cover_image_url: string | null;
+}
+
+export interface SearchResults {
+  openings: SearchOpeningHit[];
+  anime: SearchEntityHit[];
+  singers: SearchEntityHit[];
+}

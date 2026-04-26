@@ -11,6 +11,7 @@
 
 import type { GetServerSidePropsContext } from "next";
 import { getMe, getModerationQueueCount } from "./api";
+import { ensureCsrfCookie } from "./api-proxy";
 import { mockGroups, mockMe } from "./mock";
 import type { Group, User } from "./types";
 
@@ -22,6 +23,8 @@ export interface SessionData {
 }
 
 export async function loadSession(ctx: GetServerSidePropsContext): Promise<SessionData> {
+  await ensureCsrfCookie(ctx.req, ctx.res).catch(() => {});
+
   const cookie = ctx.req.headers.cookie ?? undefined;
   let user = await getMe(cookie).catch(() => null);
 
