@@ -67,3 +67,35 @@ export interface Group {
 }
 
 export type SortKey = "newest" | "top" | "most_rated";
+
+// Navigation context passed from the list page so the detail page knows which
+// openings are adjacent in the current sorted/filtered view.
+export interface AdjacentOpening {
+  id: string;
+  title: string;
+  anime: Pick<Anime, "id" | "name">;
+}
+
+export interface AdjacentOpenings {
+  prev: AdjacentOpening | null;
+  next: AdjacentOpening | null;
+}
+
+// Rating payload sent to POST /openings/:id/rate
+export interface RatePayload {
+  opening_id: string;
+  score: number; // 1–10
+}
+
+// Response from POST /openings/:id/rate
+export interface RateResponse {
+  avg_rating: number;
+  rating_count: number;
+  user_score: number;
+}
+
+// The user's own rating for an opening (returned by GET /openings/:id when authed)
+export interface UserRating {
+  score: number;
+  rated_at: string;
+}

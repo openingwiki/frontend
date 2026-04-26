@@ -32,10 +32,6 @@ function pickSort(value: unknown): SortKey {
     : "newest";
 }
 
-// SSR entry point — runs on the Node.js Next.js process for every request,
-// reads the session cookie from the incoming request, and forwards it to the
-// Go API. Falls back to fixtures while the API is still being built so the
-// design is viewable end-to-end.
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await loadSession(ctx);
 
@@ -54,15 +50,13 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       getStats(session.cookie).catch(() => ({ openings: 0, anime: 0, singers: 0 })),
     ]);
     if (session.user) {
-      groups = await listMyGroups(session.cookie).catch(() => []);
+      groups = session.mockGroups ?? await listMyGroups(session.cookie).catch(() => []);
     }
   } catch {
-    // Go API unreachable — fall back to fixtures so the design renders during
-    // local dev without a running backend. Real production must reach the API.
     apiOnline = false;
     openingsPage = mockOpenings();
     stats = mockStats();
-    groups = mockGroups();
+    groups = session.mockGroups ?? (session.user ? mockGroups() : []);
   }
 
   return {
@@ -85,16 +79,7 @@ function newLabel(submittedAt: string): string | undefined {
   return undefined;
 }
 
-export default function HomePage({
-  user,
-  modQueueCount,
-  page,
-  groups,
-  stats,
-  q,
-  sort,
-  apiOnline,
-}: Props) {
+export default function HomePage({ user, modQueueCount, page, groups, stats, q, sort, apiOnline }: Props) {
   const totalPages = Math.max(1, Math.ceil(page.total / page.per_page));
 
   return (
@@ -136,16 +121,8 @@ export default function HomePage({
         </div>
 
         {!apiOnline && (
-          <p
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: 11,
-              color: "var(--fg-4)",
-              padding: "16px 0 32px",
-              textAlign: "center",
-            }}
-          >
-            ⚠ Go API unreachable at <code>{process.env.API_BASE_URL}</code> — showing fixtures.
+          <p className="mock-notice">
+            &#9888; Go API unreachable &#8212; showing fixtures.
           </p>
         )}
       </div>
