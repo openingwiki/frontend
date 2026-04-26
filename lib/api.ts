@@ -274,6 +274,15 @@ export function removeOpeningFromGroup(
   );
 }
 
+// Admin-only soft-delete of an opening. Backend expects an admin session
+// (PATCH check inside the handler) and returns 204 No Content.
+export function adminDeleteOpening(openingId: string, cookie?: string): Promise<void> {
+  return apiFetchData<void>(`/admin/openings/${encodeURIComponent(openingId)}`, {
+    method: "DELETE",
+    cookie,
+  });
+}
+
 export function getMe(cookie?: string): Promise<User | null> {
   return apiFetchData<{ authenticated: boolean; user: User | null }>("/me", { cookie }).then(
     (data) => (data.authenticated ? data.user : null),

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import type { SortKey } from "@/lib/types";
 
@@ -28,9 +29,13 @@ const CHEVRON = (
   </svg>
 );
 
-// Click-to-open sort menu. Each option is a real <Link>, so SSR navigation
-// works without JS — clicking simply also closes the dropdown after.
+// Click-to-open sort menu. Each option is a real <Link> for SSR-friendly
+// no-JS fallback, but in the browser we hijack the click and call
+// router.push explicitly — that guarantees getServerSideProps re-runs and
+// the new sort actually takes effect (some Link/Link-onClick combos can
+// otherwise close the popup before the navigation fires).
 export default function SortBar({ total, sort, basePath, q }: Props) {
+  const router = useRouter();
   const current = OPTIONS.find((o) => o.key === sort) ?? OPTIONS[0];
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -50,6 +55,16 @@ export default function SortBar({ total, sort, basePath, q }: Props) {
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  const select = (key: SortKey, e: React.MouseEvent) => {
+    // Plain left-click without modifier keys → handle via router.push so SSR
+    // re-runs reliably. Cmd/Ctrl/middle-click falls through to <Link> default
+    // behaviour (open in new tab).
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    setOpen(false);
+    router.push(buildHref(basePath, q, key), undefined, { scroll: false });
+  };
 
   return (
     <div className="sort-bar">
@@ -77,9 +92,8 @@ export default function SortBar({ total, sort, basePath, q }: Props) {
               <li key={o.key}>
                 <Link
                   href={buildHref(basePath, q, o.key)}
-                  scroll={false}
                   className={`sort-pop-item${sort === o.key ? " on" : ""}`}
-                  onClick={() => setOpen(false)}
+                  onClick={(e) => select(o.key, e)}
                   role="option"
                   aria-selected={sort === o.key}
                 >
@@ -99,7 +113,6 @@ export default function SortBar({ total, sort, basePath, q }: Props) {
                 key={o.key}
                 href={buildHref(basePath, q, o.key)}
                 className={`sort-btn${sort === o.key ? " on" : ""}`}
-                scroll={false}
               >
                 {o.label}
               </Link>

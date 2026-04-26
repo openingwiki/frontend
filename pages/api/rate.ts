@@ -11,7 +11,13 @@
 // Backend also auto-syncs the user's "Rated" system group on both flows.
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { ApiError, deleteRating, rateOpening } from "@/lib/api";
+import {
+  ApiError,
+  deleteRating,
+  listMyGroups,
+  rateOpening,
+  removeOpeningFromGroup,
+} from "@/lib/api";
 import { mockOpening, mockRateResponse } from "@/lib/mock";
 import type { RateResponse } from "@/lib/types";
 
@@ -44,6 +50,23 @@ export default async function handler(
     }
     try {
       const result = await deleteRating(opening_id, cookie);
+      // Backend's DeleteRating doesn't currently touch group_openings, so the
+      // opening sticks around in the user's "Rated" system group after the
+      // score is cleared. Reconcile it here so the UI doesn't lie.
+      try {
+        const groups = await listMyGroups(cookie);
+        const rated = groups.find((g) => g.is_system_rated);
+        if (rated) {
+          await removeOpeningFromGroup(opening_id, rated.id, cookie).catch(
+            // 404 just means the opening wasn't there — nothing to clean up.
+            (e) => {
+              if (!(e instanceof ApiError) || e.status !== 404) throw e;
+            },
+          );
+        }
+      } catch {
+        // Cleanup is best-effort — don't fail the rating delete because of it.
+      }
       return res.status(200).json(result);
     } catch (err) {
       return forwardError(res, err);
