@@ -6,6 +6,7 @@ import type {
   AdjacentOpenings,
   AnimeDetail,
   Group,
+  GroupDetail,
   Opening,
   OpeningPage,
   RatePayload,
@@ -215,6 +216,14 @@ export function rateOpening(payload: RatePayload, cookie?: string): Promise<Rate
 
 export function listMyGroups(cookie?: string): Promise<Group[]> {
   return apiFetchData<Group[]>("/me/groups", { cookie });
+}
+
+export function getMyGroup(id: string, cookie?: string): Promise<GroupDetail> {
+  return apiFetchData<GroupDetail>(`/me/groups/${encodeURIComponent(id)}`, { cookie });
+}
+
+export function getPublicGroup(slug: string, cookie?: string): Promise<GroupDetail> {
+  return apiFetchData<GroupDetail>(`/g/${encodeURIComponent(slug)}`, { cookie });
 }
 
 export function addOpeningToGroup(

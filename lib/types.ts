@@ -162,3 +162,28 @@ export interface SearchResults {
   anime: SearchEntityHit[];
   singers: SearchEntityHit[];
 }
+
+// ---------------------------------------------------------------------------
+// Group detail (private /me/groups/:id and public /g/:slug)
+// ---------------------------------------------------------------------------
+
+export interface GroupOpening {
+  id: string;
+  title: string;
+  youtube_url: string;
+  avg_rating: number;
+  rating_count: number;
+  anime: { id: string; name: string; cover_image_url: string | null };
+  singer: { id: string; name: string; cover_image_url: string | null };
+}
+
+export interface GroupDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  is_public: boolean;
+  is_system_rated: boolean;
+  share_slug: string | null;
+  owner: { id: string; display_name: string };
+  openings: GroupOpening[];
+}
