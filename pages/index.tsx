@@ -30,11 +30,12 @@ interface Props {
 }
 
 const VALID_SORTS: SortKey[] = ["newest", "top", "most_rated"];
+const DEFAULT_SORT: SortKey = "top";
 
 function pickSort(value: unknown): SortKey {
   return typeof value === "string" && (VALID_SORTS as string[]).includes(value)
     ? (value as SortKey)
-    : "newest";
+    : DEFAULT_SORT;
 }
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
@@ -125,7 +126,7 @@ export default function HomePage({
               page={page.page}
               totalPages={totalPages}
               basePath="/"
-              query={{ q: q || undefined, sort: sort !== "newest" ? sort : undefined }}
+              query={{ q: q || undefined, sort: sort !== DEFAULT_SORT ? sort : undefined }}
             />
           </div>
 
