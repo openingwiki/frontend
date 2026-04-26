@@ -1,20 +1,67 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import Layout from "@/components/Layout";
+import EntityFilterBar from "@/components/EntityFilterBar";
 import { getSinger } from "@/lib/api";
 import { loadSession } from "@/lib/session";
-import type { SingerDetail, User } from "@/lib/types";
+import type { SingerDetail, SingerOpening, SortKey, User } from "@/lib/types";
 
 interface Props {
   user: User | null;
   modQueueCount: number;
   singer: SingerDetail | null;
+  filteredOpenings: SingerOpening[];
+  totalOpenings: number;
+  q: string;
+  sort: SortKey;
   apiOnline: boolean;
+}
+
+const VALID_SORTS: SortKey[] = ["newest", "top", "most_rated"];
+
+function pickSort(value: unknown): SortKey {
+  return typeof value === "string" && (VALID_SORTS as string[]).includes(value)
+    ? (value as SortKey)
+    : "newest";
+}
+
+function applyFilter(items: SingerOpening[], q: string): SingerOpening[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return items;
+  return items.filter(
+    (op) =>
+      op.title.toLowerCase().includes(needle) ||
+      op.anime.name.toLowerCase().includes(needle),
+  );
+}
+
+function applySort(items: SingerOpening[], sort: SortKey): SingerOpening[] {
+  const copy = [...items];
+  switch (sort) {
+    case "top":
+      copy.sort((a, b) => b.avg_rating - a.avg_rating || b.rating_count - a.rating_count);
+      break;
+    case "most_rated":
+      copy.sort((a, b) => b.rating_count - a.rating_count || b.avg_rating - a.avg_rating);
+      break;
+    case "newest":
+    default:
+      copy.sort((a, b) => {
+        const aTime = a.approved_at ? Date.parse(a.approved_at) : 0;
+        const bTime = b.approved_at ? Date.parse(b.approved_at) : 0;
+        return bTime - aTime;
+      });
+      break;
+  }
+  return copy;
 }
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await loadSession(ctx);
   const id = ctx.params?.id as string;
+
+  const q = typeof ctx.query.q === "string" ? ctx.query.q.trim() : "";
+  const sort = pickSort(ctx.query.sort);
 
   let singer: SingerDetail | null = null;
   let apiOnline = true;
@@ -30,18 +77,34 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     return { notFound: true };
   }
 
+  const filteredOpenings = applySort(applyFilter(singer.openings, q), sort);
+
   return {
     props: {
       user: session.user,
       modQueueCount: session.modQueueCount,
       singer,
+      filteredOpenings,
+      totalOpenings: singer.openings.length,
+      q,
+      sort,
       apiOnline,
     },
   };
 };
 
-export default function SingerPage({ user, modQueueCount, singer, apiOnline }: Props) {
+export default function SingerPage({
+  user,
+  modQueueCount,
+  singer,
+  filteredOpenings,
+  totalOpenings,
+  q,
+  sort,
+  apiOnline,
+}: Props) {
   const s = singer!;
+  const isFiltering = q.trim().length > 0;
 
   return (
     <Layout
@@ -68,16 +131,32 @@ export default function SingerPage({ user, modQueueCount, singer, apiOnline }: P
             <p className="entity-kind">Singer</p>
             <h1 className="entity-name">{s.name}</h1>
             <p className="entity-stat">
-              {s.openings.length} opening{s.openings.length === 1 ? "" : "s"}
+              {totalOpenings} opening{totalOpenings === 1 ? "" : "s"}
             </p>
           </div>
         </header>
 
-        {s.openings.length === 0 ? (
+        {totalOpenings > 0 && (
+          <EntityFilterBar
+            basePath={`/singers/${s.id}`}
+            sort={sort}
+            q={q}
+            total={totalOpenings}
+            filteredTotal={filteredOpenings.length}
+            searchPlaceholder="Filter by opening or anime…"
+          />
+        )}
+
+        {totalOpenings === 0 ? (
           <p className="entity-empty">No approved openings yet.</p>
+        ) : filteredOpenings.length === 0 ? (
+          <p className="entity-empty">
+            No openings match “{q}”.{" "}
+            <Link href={`/singers/${s.id}`}>Clear filter</Link>
+          </p>
         ) : (
           <ul className="entity-op-list">
-            {s.openings.map((op) => (
+            {filteredOpenings.map((op) => (
               <li key={op.id} className="entity-op-row">
                 <Link href={`/openings/${op.id}`} className="entity-op-title">
                   {op.title}
@@ -104,9 +183,14 @@ export default function SingerPage({ user, modQueueCount, singer, apiOnline }: P
           </ul>
         )}
 
-        {!apiOnline && (
-          <p className="mock-notice">⚠ Go API unreachable.</p>
+        {isFiltering && filteredOpenings.length > 0 && (
+          <p className="entity-filter-hint">
+            Showing {filteredOpenings.length} of {totalOpenings} openings.{" "}
+            <Link href={`/singers/${s.id}`}>Show all</Link>
+          </p>
         )}
+
+        {!apiOnline && <p className="mock-notice">⚠ Go API unreachable.</p>}
       </div>
     </Layout>
   );

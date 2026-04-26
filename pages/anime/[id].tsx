@@ -1,20 +1,67 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import Layout from "@/components/Layout";
+import EntityFilterBar from "@/components/EntityFilterBar";
 import { getAnime } from "@/lib/api";
 import { loadSession } from "@/lib/session";
-import type { AnimeDetail, User } from "@/lib/types";
+import type { AnimeDetail, AnimeOpening, SortKey, User } from "@/lib/types";
 
 interface Props {
   user: User | null;
   modQueueCount: number;
   anime: AnimeDetail | null;
+  filteredOpenings: AnimeOpening[];
+  totalOpenings: number;
+  q: string;
+  sort: SortKey;
   apiOnline: boolean;
+}
+
+const VALID_SORTS: SortKey[] = ["newest", "top", "most_rated"];
+
+function pickSort(value: unknown): SortKey {
+  return typeof value === "string" && (VALID_SORTS as string[]).includes(value)
+    ? (value as SortKey)
+    : "newest";
+}
+
+function applyFilter(items: AnimeOpening[], q: string): AnimeOpening[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return items;
+  return items.filter(
+    (op) =>
+      op.title.toLowerCase().includes(needle) ||
+      op.singer.name.toLowerCase().includes(needle),
+  );
+}
+
+function applySort(items: AnimeOpening[], sort: SortKey): AnimeOpening[] {
+  const copy = [...items];
+  switch (sort) {
+    case "top":
+      copy.sort((a, b) => b.avg_rating - a.avg_rating || b.rating_count - a.rating_count);
+      break;
+    case "most_rated":
+      copy.sort((a, b) => b.rating_count - a.rating_count || b.avg_rating - a.avg_rating);
+      break;
+    case "newest":
+    default:
+      copy.sort((a, b) => {
+        const aTime = a.approved_at ? Date.parse(a.approved_at) : 0;
+        const bTime = b.approved_at ? Date.parse(b.approved_at) : 0;
+        return bTime - aTime;
+      });
+      break;
+  }
+  return copy;
 }
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await loadSession(ctx);
   const id = ctx.params?.id as string;
+
+  const q = typeof ctx.query.q === "string" ? ctx.query.q.trim() : "";
+  const sort = pickSort(ctx.query.sort);
 
   let anime: AnimeDetail | null = null;
   let apiOnline = true;
@@ -30,18 +77,36 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     return { notFound: true };
   }
 
+  // The backend returns the full openings list — we sort/filter on SSR
+  // (per-anime list is small enough that another round-trip isn't worth it).
+  const filteredOpenings = applySort(applyFilter(anime.openings, q), sort);
+
   return {
     props: {
       user: session.user,
       modQueueCount: session.modQueueCount,
       anime,
+      filteredOpenings,
+      totalOpenings: anime.openings.length,
+      q,
+      sort,
       apiOnline,
     },
   };
 };
 
-export default function AnimePage({ user, modQueueCount, anime, apiOnline }: Props) {
+export default function AnimePage({
+  user,
+  modQueueCount,
+  anime,
+  filteredOpenings,
+  totalOpenings,
+  q,
+  sort,
+  apiOnline,
+}: Props) {
   const a = anime!;
+  const isFiltering = q.trim().length > 0;
 
   return (
     <Layout
@@ -68,16 +133,32 @@ export default function AnimePage({ user, modQueueCount, anime, apiOnline }: Pro
             <p className="entity-kind">Anime</p>
             <h1 className="entity-name">{a.name}</h1>
             <p className="entity-stat">
-              {a.openings.length} opening{a.openings.length === 1 ? "" : "s"}
+              {totalOpenings} opening{totalOpenings === 1 ? "" : "s"}
             </p>
           </div>
         </header>
 
-        {a.openings.length === 0 ? (
+        {totalOpenings > 0 && (
+          <EntityFilterBar
+            basePath={`/anime/${a.id}`}
+            sort={sort}
+            q={q}
+            total={totalOpenings}
+            filteredTotal={filteredOpenings.length}
+            searchPlaceholder="Filter by opening or singer…"
+          />
+        )}
+
+        {totalOpenings === 0 ? (
           <p className="entity-empty">No approved openings yet.</p>
+        ) : filteredOpenings.length === 0 ? (
+          <p className="entity-empty">
+            No openings match “{q}”.{" "}
+            <Link href={`/anime/${a.id}`}>Clear filter</Link>
+          </p>
         ) : (
           <ul className="entity-op-list">
-            {a.openings.map((op) => (
+            {filteredOpenings.map((op) => (
               <li key={op.id} className="entity-op-row">
                 <Link href={`/openings/${op.id}`} className="entity-op-title">
                   {op.title}
@@ -104,9 +185,14 @@ export default function AnimePage({ user, modQueueCount, anime, apiOnline }: Pro
           </ul>
         )}
 
-        {!apiOnline && (
-          <p className="mock-notice">⚠ Go API unreachable.</p>
+        {isFiltering && filteredOpenings.length > 0 && (
+          <p className="entity-filter-hint">
+            Showing {filteredOpenings.length} of {totalOpenings} openings.{" "}
+            <Link href={`/anime/${a.id}`}>Show all</Link>
+          </p>
         )}
+
+        {!apiOnline && <p className="mock-notice">⚠ Go API unreachable.</p>}
       </div>
     </Layout>
   );
