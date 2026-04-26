@@ -255,7 +255,9 @@ export default function CommentsSection({
     [],
   );
 
-  const needsVerified = user && user.email_verified === false;
+  // Email confirmation gate temporarily disabled.
+  // const needsVerified = user && user.email_verified === false;
+  const needsVerified = false;
 
   return (
     <section className="comments">
