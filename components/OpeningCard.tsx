@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Opening } from "@/lib/types";
+import { youtubeThumbnail } from "@/lib/youtube";
 
 interface Props {
   op: Opening;
@@ -14,11 +15,18 @@ const PLAY_ICON = (
 );
 
 export default function OpeningCard({ op, newLabel }: Props) {
+  const thumb = youtubeThumbnail(op.youtube_url);
   const pattern = op.pattern ?? 1;
+  // Pattern stripes are the placeholder when we can't extract a YouTube ID.
+  const thumbClass = thumb ? "op-thumb" : `op-thumb p-${pattern}`;
 
   return (
     <article className="op-card">
-      <Link href={`/openings/${op.id}`} className={`op-thumb p-${pattern}`}>
+      <Link href={`/openings/${op.id}`} className={thumbClass}>
+        {thumb && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumb} alt="" className="op-thumb-img" loading="lazy" />
+        )}
         {newLabel && <span className="op-badge new">NEW · {newLabel}</span>}
         {op.duration && <span className="op-duration">{op.duration}</span>}
         <span className="op-play">

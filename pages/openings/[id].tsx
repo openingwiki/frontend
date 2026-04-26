@@ -18,22 +18,7 @@ import type {
   User,
   UserRating,
 } from "@/lib/types";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function youtubeEmbed(url: string): string | null {
-  try {
-    const u = new URL(url);
-    const id = u.hostname.includes("youtu.be")
-      ? u.pathname.slice(1)
-      : u.searchParams.get("v");
-    return id ? `https://www.youtube.com/embed/${id}?rel=0` : null;
-  } catch {
-    return null;
-  }
-}
+import { youtubeEmbedURL } from "@/lib/youtube";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -98,7 +83,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       modQueueCount: session.modQueueCount,
       groups: session.mockGroups ?? [],
       opening,
-      embedUrl: youtubeEmbed(opening.youtube_url),
+      embedUrl: youtubeEmbedURL(opening.youtube_url),
       adjacent,
       userRating,
       apiOnline,

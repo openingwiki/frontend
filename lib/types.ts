@@ -10,6 +10,7 @@ export interface User {
   display_name: string;
   role: Role;
   created_at: string;
+  email_verified: boolean;
 }
 
 export interface Anime {

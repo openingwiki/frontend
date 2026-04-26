@@ -4,6 +4,7 @@ import type { User } from "@/lib/types";
 import Topbar from "./Topbar";
 import Rolebar from "./Rolebar";
 import Footer from "./Footer";
+import EmailVerificationBanner from "./EmailVerificationBanner";
 
 interface Props {
   children: ReactNode;
@@ -28,6 +29,7 @@ export default function Layout({
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <Topbar user={user} />
+      <EmailVerificationBanner user={user} />
       <Rolebar user={user} modQueueCount={modQueueCount} />
       {children}
       <Footer />

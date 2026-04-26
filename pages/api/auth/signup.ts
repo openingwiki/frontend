@@ -34,5 +34,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.redirect(302, `/signup?error=${encodeURIComponent(message)}`);
   }
 
-  return res.redirect(302, next);
+  // Append the verification-pending flag so the landing page shows the modal
+  // explaining that a confirmation link was emailed. The banner persists via
+  // user.email_verified === false; the modal is one-shot, dismissed by the
+  // user removing the query param.
+  const separator = next.includes("?") ? "&" : "?";
+  return res.redirect(302, `${next}${separator}signup=pending`);
 }
