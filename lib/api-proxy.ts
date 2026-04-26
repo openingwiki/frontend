@@ -11,10 +11,15 @@ export function backendUrl(path: string): string {
 }
 
 export function copyBackendCookies(res: NextApiResponse, upstream: Response) {
-  const setCookie = upstream.headers.get("set-cookie");
-  if (setCookie) {
-    res.setHeader("set-cookie", setCookie);
-  }
+  // Use getSetCookie() so multiple Set-Cookie headers (session + csrf) survive
+  // the round-trip — .get('set-cookie') in undici concatenates them with a
+  // comma, which browsers refuse to split back into separate cookies.
+  const setCookies =
+    typeof upstream.headers.getSetCookie === "function"
+      ? upstream.headers.getSetCookie()
+      : ([upstream.headers.get("set-cookie")].filter(Boolean) as string[]);
+  if (setCookies.length === 0) return;
+  res.setHeader("set-cookie", setCookies);
 }
 
 export function getCsrfTokenFromCookieHeader(cookieHeader?: string): string | null {
@@ -66,21 +71,18 @@ export async function ensureCsrfCookie(
     clearTimeout(timer);
   }
 
-  const setCookie = upstream.headers.get("set-cookie");
-  if (!setCookie) return;
+  const setCookies =
+    typeof upstream.headers.getSetCookie === "function"
+      ? upstream.headers.getSetCookie()
+      : ([upstream.headers.get("set-cookie")].filter(Boolean) as string[]);
+  if (setCookies.length === 0) return;
 
   const current = res.getHeader("set-cookie");
-  if (!current) {
-    res.setHeader("set-cookie", setCookie);
-    return;
-  }
-
-  if (Array.isArray(current)) {
-    res.setHeader("set-cookie", [...current, setCookie]);
-    return;
-  }
-
-  res.setHeader("set-cookie", [String(current), setCookie]);
+  const merged: string[] = [];
+  if (Array.isArray(current)) merged.push(...current.map(String));
+  else if (current) merged.push(String(current));
+  merged.push(...setCookies);
+  res.setHeader("set-cookie", merged);
 }
 
 export async function readBackendError(upstream: Response): Promise<string> {
