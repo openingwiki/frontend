@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import type { NextApiResponse } from "next";
 
-const API_ORIGIN = process.env.API_BASE_URL || "http://72.56.5.153:8080";
+const API_ORIGIN = process.env.API_BASE_URL || "http://localhost:8080";
 const API_PREFIX = "/api/v1";
 const CSRF_COOKIE_NAME = "ow_csrf";
-const API_TIMEOUT_MS = Number(process.env.API_TIMEOUT_MS ?? 5000);
+const API_TIMEOUT_MS = Number(process.env.API_TIMEOUT_MS ?? 2000);
 
 export function backendUrl(path: string): string {
   return `${API_ORIGIN}${API_PREFIX}${path}`;

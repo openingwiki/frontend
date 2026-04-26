@@ -1,18 +1,17 @@
 /** @type {import('next').NextConfig} */
-const apiOrigin = process.env.API_BASE_URL || "http://72.56.5.153:8080";
+// Read API_BASE_URL at server start (rewrites destination) AND let server-side
+// modules read process.env.API_BASE_URL at runtime — do NOT pass it through
+// the `env` config option, which would inline the build-time value into
+// bundles and override the docker-set env var on the running container.
+const apiOrigin = process.env.API_BASE_URL || "http://localhost:8080";
 
 const nextConfig = {
   reactStrictMode: true,
-  // Allow YouTube thumbnails when we wire real data in
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "i.ytimg.com" },
       { protocol: "https", hostname: "img.youtube.com" },
     ],
-  },
-  // Public env consumed by lib/api.ts
-  env: {
-    API_BASE_URL: apiOrigin,
   },
   async rewrites() {
     return [

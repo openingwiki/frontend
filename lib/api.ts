@@ -17,16 +17,15 @@ import type {
   UserRating,
 } from "./types";
 
-const API_ORIGIN = process.env.API_BASE_URL || "http://72.56.5.153:8080";
+const API_ORIGIN = process.env.API_BASE_URL || "http://localhost:8080";
 const API_PREFIX = "/api/v1";
 const CSRF_COOKIE_NAME = "ow_csrf";
 
 // Hard cap on every SSR call to the Go API. Without this a stalled backend
-// blocks getServerSideProps for the OS-level TCP timeout (~75s on Linux),
-// which manifests as Next.js logging "Loading initial props cancelled" when
-// the user navigates away mid-load. 5s is generous for a healthy API and
-// short enough that the .catch() fallback to fixtures kicks in fast.
-const API_TIMEOUT_MS = Number(process.env.API_TIMEOUT_MS ?? 5000);
+// blocks getServerSideProps for the OS-level TCP timeout (~75s on Linux).
+// 2s is enough for a healthy backend over docker network and short enough
+// that the .catch() fallback to fixtures kicks in before the user notices.
+const API_TIMEOUT_MS = Number(process.env.API_TIMEOUT_MS ?? 2000);
 
 interface FetchOpts extends RequestInit {
   cookie?: string;
