@@ -2,8 +2,8 @@ FROM node:20-bookworm-slim AS build
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci; else npm install --no-fund --no-audit; fi
 
 COPY . .
 RUN mkdir -p public && npm run build
@@ -18,8 +18,9 @@ RUN groupadd --system --gid 1001 nodejs \
 
 WORKDIR /app
 
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
 
 USER nextjs
@@ -28,4 +29,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "server.js"]
+CMD ["npm", "run", "start"]

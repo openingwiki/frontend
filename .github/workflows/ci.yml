@@ -28,7 +28,6 @@ jobs:
           REPOSITORY_DISPATCH_TOKEN: ${{ secrets.REPOSITORY_DISPATCH_TOKEN }}
         run: |
           test -f package.json
-          test -f package-lock.json
           test -f Dockerfile
           test -f next.config.mjs -o -f next.config.js
           test -d app -o -d pages
@@ -38,9 +37,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - run: npm ci
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-fund --no-audit
+          fi
 
       - run: npm run build
 

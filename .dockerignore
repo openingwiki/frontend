@@ -3,9 +3,11 @@
 .idea
 README.md
 LICENSE
+.env.local
 node_modules
 .next
 coverage
+Opening Wiki.html
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
