@@ -141,12 +141,12 @@ export default function GroupAddMenu({
   // Show user's manually-managed groups + Rated as an info row (read-only).
   const manualGroups = groups.filter((g) => !g.is_system_rated);
   const ratedGroup = groups.find((g) => g.is_system_rated);
-  const inManualCount = manualGroups.filter((g) => memberships.has(g.id)).length;
+  const totalMembershipCount = groups.filter((g) => memberships.has(g.id)).length;
   const inRated = ratedGroup ? memberships.has(ratedGroup.id) : false;
 
   const triggerLabel =
-    inManualCount > 0
-      ? `In ${inManualCount} group${inManualCount === 1 ? "" : "s"}`
+    totalMembershipCount > 0
+      ? `In ${totalMembershipCount} group${totalMembershipCount === 1 ? "" : "s"}`
       : "Add to group";
 
   return (
@@ -209,11 +209,12 @@ export default function GroupAddMenu({
                         disabled={isPending}
                       >
                         <span className="grp-add-row-icon">
-                          {isMember ? CHECK_ICON : PLUS_ICON}
+                          {PLUS_ICON}
                         </span>
                         <span className="grp-add-row-name">{g.name}</span>
                         {g.is_public && <span className="grp-add-row-tag public">public</span>}
                         {isPending && <span className="grp-add-row-tag">…</span>}
+                        {isMember && <span className="grp-add-row-check">{CHECK_ICON}</span>}
                       </button>
                     </li>
                   );

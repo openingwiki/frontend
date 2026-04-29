@@ -3,17 +3,19 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useCallback, useState } from "react";
 import Layout from "@/components/Layout";
-import { listMyGroups } from "@/lib/api";
+import { listMyGroups, listPublicGroups } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import { mockGroups } from "@/lib/mock";
 import { pushToast } from "@/lib/toast";
-import type { Group, User } from "@/lib/types";
+import type { Group, PublicGroupSummary, User } from "@/lib/types";
 
 interface Props {
   user: User | null;
   modQueueCount: number;
   groups: Group[];
+  publicGroups: PublicGroupSummary[];
   showCreateForm: boolean;
+  showPublicGroups: boolean;
 }
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
@@ -23,12 +25,18 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   }
   const groups = await listMyGroups(session.cookie).catch(() => mockGroups());
   const showCreateForm = ctx.query.new === "1" || ctx.query.new === "";
+  const showPublicGroups = ctx.query.public === "1" || ctx.query.public === "";
+  const publicGroups = showPublicGroups
+    ? await listPublicGroups(session.cookie).catch(() => [])
+    : [];
   return {
     props: {
       user: session.user,
       modQueueCount: session.modQueueCount,
       groups,
+      publicGroups,
       showCreateForm,
+      showPublicGroups,
     },
   };
 };
@@ -146,7 +154,14 @@ function CreateGroupForm({ defaultOpen, onCreated }: CreateFormProps) {
   );
 }
 
-export default function GroupsPage({ user, modQueueCount, groups, showCreateForm }: Props) {
+export default function GroupsPage({
+  user,
+  modQueueCount,
+  groups,
+  publicGroups,
+  showCreateForm,
+  showPublicGroups,
+}: Props) {
   const router = useRouter();
 
   const handleCreated = useCallback(
@@ -159,6 +174,13 @@ export default function GroupsPage({ user, modQueueCount, groups, showCreateForm
     },
     [router],
   );
+
+  const togglePublicGroups = useCallback(() => {
+    const { public: _public, ...rest } = router.query;
+    void _public;
+    const query = showPublicGroups ? rest : { ...rest, public: "1" };
+    router.replace({ pathname: "/groups", query }, undefined, { scroll: false });
+  }, [router, showPublicGroups]);
 
   return (
     <Layout user={user} modQueueCount={modQueueCount} title="My groups">
@@ -176,6 +198,12 @@ export default function GroupsPage({ user, modQueueCount, groups, showCreateForm
           <CreateGroupForm defaultOpen={showCreateForm} onCreated={handleCreated} />
         </div>
 
+        <div style={{ marginBottom: 18 }}>
+          <button type="button" className="btn sm" onClick={togglePublicGroups}>
+            {showPublicGroups ? "Hide public groups" : "Show public groups"}
+          </button>
+        </div>
+
         <div className="panel" style={{ maxWidth: 520 }}>
           <div className="grp-list">
             {groups.length === 0 ? (
@@ -184,19 +212,53 @@ export default function GroupsPage({ user, modQueueCount, groups, showCreateForm
               </p>
             ) : (
               groups.map((g) => (
-                <Link
+                <div
                   key={g.id}
-                  href={g.is_public && g.share_slug ? `/g/${g.share_slug}` : `/groups/${g.id}`}
-                  className={`grp-item ${g.is_system_rated ? "system" : g.is_public ? "public" : ""}`.trim()}
+                  className={`grp-item-wrap ${g.is_system_rated ? "system" : g.is_public ? "public" : ""}`.trim()}
                 >
-                  <span className="grp-icon">•</span>
-                  <span className="grp-name">{g.name}</span>
-                  <span className="grp-count">{g.opening_count}</span>
-                </Link>
+                  <Link
+                    href={`/groups/${g.id}`}
+                    className={`grp-item ${g.is_system_rated ? "system" : g.is_public ? "public" : ""}`.trim()}
+                  >
+                    <span className="grp-icon">•</span>
+                    <span className="grp-name">{g.name}</span>
+                    <span className="grp-count">{g.opening_count}</span>
+                  </Link>
+                  {g.is_public && g.share_slug && (
+                    <Link className="grp-public-link" href={`/g/${g.share_slug}`} title="Open public page">
+                      Public
+                    </Link>
+                  )}
+                </div>
               ))
             )}
           </div>
         </div>
+
+        {showPublicGroups && (
+          <div className="panel" style={{ maxWidth: 640, marginTop: 24 }}>
+            <div className="panel-head">
+              <span>Public groups</span>
+            </div>
+            <div className="grp-list">
+              {publicGroups.length === 0 ? (
+                <p className="search-empty" style={{ padding: 18 }}>
+                  No public groups yet.
+                </p>
+              ) : (
+                publicGroups.map((group) => (
+                  <Link key={group.id} href={`/g/${group.share_slug}`} className="grp-public-item">
+                    <div className="grp-public-main">
+                      <span className="grp-name">{group.name}</span>
+                      <span className="grp-public-owner">by {group.owner.display_name}</span>
+                    </div>
+                    <span className="grp-count">{group.opening_count}</span>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

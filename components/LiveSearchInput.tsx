@@ -1,5 +1,6 @@
 import { useRouter } from "next/router";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useSearchHotkey } from "./useSearchHotkey";
 
 interface Props {
   basePath: string;
@@ -34,6 +35,9 @@ export default function LiveSearchInput({
   const router = useRouter();
   const [value, setValue] = useState(initialQ);
   const lastPushedRef = useRef(initialQ);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useSearchHotkey(inputRef);
 
   // Keep local state in sync if the URL changes externally (back/forward,
   // clicking a "Clear" link). Skip if the change is one we just pushed.
@@ -73,6 +77,7 @@ export default function LiveSearchInput({
     <form className="search" action={basePath} method="get" onSubmit={onSubmit}>
       {SEARCH_ICON}
       <input
+        ref={inputRef}
         name="q"
         value={value}
         onChange={(e) => setValue(e.target.value)}

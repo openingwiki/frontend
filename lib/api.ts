@@ -9,6 +9,7 @@ import type {
   GroupDetail,
   Opening,
   OpeningPage,
+  PublicGroupSummary,
   RatePayload,
   RateResponse,
   SearchResults,
@@ -240,6 +241,10 @@ export function deleteRating(openingId: string, cookie?: string): Promise<RateRe
 
 export function listMyGroups(cookie?: string): Promise<Group[]> {
   return apiFetchData<Group[]>("/me/groups", { cookie });
+}
+
+export function listPublicGroups(cookie?: string): Promise<PublicGroupSummary[]> {
+  return apiFetchData<PublicGroupSummary[]>("/groups/public", { cookie });
 }
 
 export function getMyGroup(id: string, cookie?: string): Promise<GroupDetail> {

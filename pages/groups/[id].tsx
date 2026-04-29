@@ -2,8 +2,10 @@ import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState } from "react";
+import BackLink from "@/components/BackLink";
 import Layout from "@/components/Layout";
 import OpeningCard from "@/components/OpeningCard";
+import { pushToast } from "@/lib/toast";
 import { ApiError, getMyGroup } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import type { GroupDetail, GroupOpening, Opening, User } from "@/lib/types";
@@ -63,6 +65,7 @@ function asOpening(item: GroupOpening): Opening {
 export default function PrivateGroupPage({ user, modQueueCount, group, shareUrl }: Props) {
   const router = useRouter();
   const [removing, setRemoving] = useState<string | null>(null);
+  const [togglingPublic, setTogglingPublic] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!group) {
@@ -70,7 +73,7 @@ export default function PrivateGroupPage({ user, modQueueCount, group, shareUrl 
       <Layout user={user} modQueueCount={modQueueCount} title="Group not found">
         <div className="wrap" style={{ paddingTop: 48, paddingBottom: 64, maxWidth: 720 }}>
           <p style={{ marginBottom: 12 }}>
-            <Link href="/groups">← My groups</Link>
+            <BackLink fallbackHref="/groups">← Back</BackLink>
           </p>
           <h1 style={{ fontSize: 28, letterSpacing: "-0.02em", margin: "0 0 16px" }}>
             Group not found
@@ -119,11 +122,43 @@ export default function PrivateGroupPage({ user, modQueueCount, group, shareUrl 
     }
   };
 
+  const setPublicVisibility = async (isPublic: boolean) => {
+    if (group.is_system_rated || togglingPublic) return;
+    setTogglingPublic(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/groups/${group.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: group.name,
+          description: group.description ?? "",
+          is_public: isPublic,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? `Update failed (${res.status})`);
+      }
+      pushToast({
+        kind: "success",
+        message: isPublic ? "Group is now public" : "Public group hidden",
+      });
+      router.replace(router.asPath, undefined, { scroll: false });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not update group";
+      setError(message);
+      pushToast({ kind: "error", message });
+    } finally {
+      setTogglingPublic(false);
+    }
+  };
+
   return (
     <Layout user={user} modQueueCount={modQueueCount} title={`${group.name} · My groups`}>
       <div className="wrap" style={{ paddingTop: 32, paddingBottom: 64 }}>
         <p style={{ marginBottom: 12, color: "var(--fg-3)" }}>
-          <Link href="/groups">← My groups</Link>
+          <BackLink fallbackHref="/groups">← Back</BackLink>
         </p>
         <div className="group-head">
           <div>
@@ -134,13 +169,39 @@ export default function PrivateGroupPage({ user, modQueueCount, group, shareUrl 
             </p>
             {group.description && <p className="group-desc">{group.description}</p>}
           </div>
-          {shareUrl && (
-            <div className="group-share">
-              <span className="group-share-label">Share URL</span>
-              <code>{shareUrl}</code>
-              <button type="button" className="btn sm" onClick={copyShare}>Copy</button>
-            </div>
-          )}
+          <div className="group-head-actions">
+            {shareUrl && (
+              <div className="group-share">
+                <span className="group-share-label">Share URL</span>
+                <code>{shareUrl}</code>
+                <button type="button" className="btn sm" onClick={copyShare}>Copy</button>
+                <Link href={`/g/${group.share_slug}`} className="btn sm">Open public page</Link>
+              </div>
+            )}
+            {!group.is_system_rated && (
+              <div className="group-visibility-actions">
+                {group.is_public ? (
+                  <button
+                    type="button"
+                    className="btn sm"
+                    onClick={() => void setPublicVisibility(false)}
+                    disabled={togglingPublic}
+                  >
+                    {togglingPublic ? "Hiding…" : "Hide public group"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn sm"
+                    onClick={() => void setPublicVisibility(true)}
+                    disabled={togglingPublic}
+                  >
+                    {togglingPublic ? "Publishing…" : "Make public"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {error && <p className="mock-notice">{error}</p>}

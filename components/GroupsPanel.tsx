@@ -45,15 +45,21 @@ export default function GroupsPanel({ groups }: Props) {
 
       <div className="grp-list">
         {groups.map((g) => (
-          <Link
-            key={g.id}
-            className={`grp-item ${modifier(g)}`.trim()}
-            href={g.is_public && g.share_slug ? `/g/${g.share_slug}` : `/groups/${g.id}`}
-          >
-            <span className="grp-icon">{icon(g)}</span>
-            <span className="grp-name">{g.name}</span>
-            <span className="grp-count">{g.opening_count}</span>
-          </Link>
+          <div key={g.id} className={`grp-item-wrap ${modifier(g)}`.trim()}>
+            <Link
+              className={`grp-item ${modifier(g)}`.trim()}
+              href={`/groups/${g.id}`}
+            >
+              <span className="grp-icon">{icon(g)}</span>
+              <span className="grp-name">{g.name}</span>
+              <span className="grp-count">{g.opening_count}</span>
+            </Link>
+            {g.is_public && g.share_slug && (
+              <Link className="grp-public-link" href={`/g/${g.share_slug}`} title="Open public page">
+                Public
+              </Link>
+            )}
+          </div>
         ))}
       </div>
 

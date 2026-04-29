@@ -1,5 +1,7 @@
+import { useRef } from "react";
 import type { SortKey } from "@/lib/types";
 import SortBar from "./SortBar";
+import { useSearchHotkey } from "./useSearchHotkey";
 
 interface Props {
   basePath: string;
@@ -28,13 +30,17 @@ export default function EntityFilterBar({
   filteredTotal,
   searchPlaceholder,
 }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
   const isFiltered = q.trim().length > 0 && filteredTotal !== total;
+
+  useSearchHotkey(inputRef);
 
   return (
     <div className="entity-filter">
       <form className="entity-filter-search" action={basePath} method="get">
         {SEARCH_ICON}
         <input
+          ref={inputRef}
           name="q"
           defaultValue={q}
           placeholder={searchPlaceholder ?? "Filter openings…"}

@@ -68,6 +68,22 @@ export interface Group {
   opening_count: number;
 }
 
+export interface PublicGroupSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  is_public: boolean;
+  share_slug: string | null;
+  is_system_rated: boolean;
+  opening_count: number;
+  updated_at: string;
+  owner: {
+    id: string;
+    display_name: string;
+    avatar_url: string | null;
+  };
+}
+
 export type SortKey = "newest" | "top" | "most_rated";
 
 // Navigation context passed from the list page so the detail page knows which

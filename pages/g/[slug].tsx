@@ -1,5 +1,6 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
+import BackLink from "@/components/BackLink";
 import Layout from "@/components/Layout";
 import OpeningCard from "@/components/OpeningCard";
 import { ApiError, getPublicGroup } from "@/lib/api";
@@ -54,7 +55,7 @@ export default function PublicGroupPage({ user, modQueueCount, group }: Props) {
             This shared group does not exist, or it has been made private.
           </p>
           <p style={{ marginTop: 24 }}>
-            <Link href="/" style={{ color: "var(--accent)" }}>← Browse all openings</Link>
+            <BackLink fallbackHref="/groups" className="detail-link">← Back</BackLink>
           </p>
         </div>
       </Layout>
@@ -65,7 +66,7 @@ export default function PublicGroupPage({ user, modQueueCount, group }: Props) {
     <Layout user={user} modQueueCount={modQueueCount} title={`${group.name} · Shared group`}>
       <div className="wrap" style={{ paddingTop: 32, paddingBottom: 64 }}>
         <p style={{ marginBottom: 12, color: "var(--fg-3)" }}>
-          <Link href="/">← Home</Link>
+          <BackLink fallbackHref="/groups">← Back</BackLink>
         </p>
         <div className="group-head">
           <div>
