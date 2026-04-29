@@ -17,20 +17,18 @@ const ALLOWED_PREFIXES = [
 const NEEDS_VERIFY_COOKIE = "ow_needs_verify";
 
 export function middleware(req: NextRequest) {
-  // Email confirmation gate temporarily disabled.
-  return NextResponse.next();
-  // const needsVerify = req.cookies.get(NEEDS_VERIFY_COOKIE)?.value === "1";
-  // if (!needsVerify) return NextResponse.next();
-  //
-  // const path = req.nextUrl.pathname;
-  // if (ALLOWED_PREFIXES.some((p) => path === p || path.startsWith(p))) {
-  //   return NextResponse.next();
-  // }
-  //
-  // const url = req.nextUrl.clone();
-  // url.pathname = "/verify-email";
-  // url.search = "";
-  // return NextResponse.redirect(url);
+  const needsVerify = req.cookies.get(NEEDS_VERIFY_COOKIE)?.value === "1";
+  if (!needsVerify) return NextResponse.next();
+
+  const path = req.nextUrl.pathname;
+  if (ALLOWED_PREFIXES.some((p) => path === p || path.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  const url = req.nextUrl.clone();
+  url.pathname = "/verify-email";
+  url.search = "";
+  return NextResponse.redirect(url);
 }
 
 export const config = {
