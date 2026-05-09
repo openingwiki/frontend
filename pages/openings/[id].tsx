@@ -216,7 +216,9 @@ export default function OpeningDetail({
     >
       <div className="wrap">
         <div className="detail-crumb">
-          <Link href="/">← All openings</Link>
+          <Link href={`/?kind=${op.kind}`}>
+            ← All {op.kind === "opening" ? "openings" : op.kind === "ending" ? "endings" : "OSTs"}
+          </Link>
           <span style={{ flex: 1 }} />
           {adjacent.prev && (
             <Link href={`/openings/${adjacent.prev.id}`} className="detail-crumb-adj">
@@ -266,6 +268,12 @@ export default function OpeningDetail({
             </div>
 
             <div className="detail-attrs">
+              <span className="detail-attr">
+                <span className="detail-attr-label">Type</span>
+                <span className="detail-attr-val" style={{ textTransform: "capitalize" }}>
+                  {op.kind === "ost" ? "OST" : op.kind}
+                </span>
+              </span>
               {op.duration && (
                 <span className="detail-attr">
                   <span className="detail-attr-label">Duration</span>

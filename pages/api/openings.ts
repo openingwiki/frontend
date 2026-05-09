@@ -15,6 +15,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const youtubeUrl = typeof req.body?.youtube_url === "string" ? req.body.youtube_url : "";
   const animeName = typeof req.body?.anime === "string" ? req.body.anime : "";
   const singerName = typeof req.body?.singer === "string" ? req.body.singer : "";
+  const rawKind = typeof req.body?.kind === "string" ? req.body.kind : "opening";
+  const kind = ["opening", "ending", "ost"].includes(rawKind) ? rawKind : "opening";
 
   const upstream = await fetch(backendUrl("/openings"), {
     method: "POST",
@@ -24,6 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     body: JSON.stringify({
       title,
       youtube_url: youtubeUrl,
+      kind,
       anime: {
         mode: "create",
         name: animeName,
@@ -42,5 +45,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.redirect(302, `/submit?error=${encodeURIComponent(message)}`);
   }
 
-  return res.redirect(302, "/");
+  return res.redirect(302, `/?kind=${encodeURIComponent(kind)}`);
 }

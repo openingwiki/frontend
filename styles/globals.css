@@ -441,6 +441,20 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 .formpage .actions { display: flex; gap: 10px; margin-top: 8px; }
 .formpage .actions .btn { flex: 1; justify-content: center; }
 
+/* Kind picker inside submit form */
+.kind-picker { display: flex; gap: 8px; }
+.kind-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 8px; border-radius: 8px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  color: var(--fg-3); cursor: pointer; transition: border-color .15s, color .15s;
+}
+.kind-btn:hover { border-color: var(--line-2); color: var(--fg-2); }
+.kind-btn.on { border-color: var(--accent); color: var(--accent); background: var(--bg-2); }
+.kind-btn-label { font-size: 13px; font-weight: 600; }
+.kind-btn-sub { font-family: var(--mono); font-size: 10px; color: var(--fg-4); letter-spacing: 0.06em; }
+.kind-btn.on .kind-btn-sub { color: var(--accent); opacity: 0.7; }
+
 /* ── Detail page ──────────────────────────────────────────────────────────── */
 
 /* Breadcrumb bar */

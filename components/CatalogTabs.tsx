@@ -10,7 +10,7 @@ interface Tab {
 const TABS: Tab[] = [
   { kind: "opening", label: "Openings", subtitle: "OP · INTRO · ~90s" },
   { kind: "ending",  label: "Endings",  subtitle: "ED · OUTRO · ~90s" },
-  { kind: "ost",     label: "OSTs",     subtitle: "INSERT SONGS · SCORE" },
+  { kind: "ost",     label: "OSTs",     subtitle: "OST · TRACK" },
 ];
 
 interface Props {

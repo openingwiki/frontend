@@ -15,7 +15,7 @@ export default function Footer() {
         </div>
         <div className="foot-brand">
           <span className="foot-mark" />
-          Opening Wiki · v0.1
+          Opening Wiki · v0.2
         </div>
       </div>
     </footer>
