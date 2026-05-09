@@ -1,6 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Layout from "@/components/Layout";
 import SearchHeader from "@/components/SearchHeader";
+import CatalogTabs from "@/components/CatalogTabs";
 import SortBar from "@/components/SortBar";
 import OpeningCard from "@/components/OpeningCard";
 import Pagination from "@/components/Pagination";
@@ -8,13 +9,15 @@ import GroupsPanel from "@/components/GroupsPanel";
 import AuthCard from "@/components/AuthCard";
 import SubmitCard from "@/components/SubmitCard";
 
-import { getStats, listMyGroups, listOpenings } from "@/lib/api";
+import { getKindCounts, listMyGroups, listOpenings } from "@/lib/api";
+import type { KindCounts } from "@/lib/api";
 import { loadSession } from "@/lib/session";
-import { mockGroups, mockOpenings, mockStats } from "@/lib/mock";
+import { mockGroups, mockOpenings } from "@/lib/mock";
 import type {
   Group,
   OpeningPage,
   SortKey,
+  TrackKind,
   User,
 } from "@/lib/types";
 
@@ -23,14 +26,17 @@ interface Props {
   modQueueCount: number;
   page: OpeningPage;
   groups: Group[];
-  stats: { openings: number; anime: number; singers: number };
+  kindCounts: KindCounts;
   q: string;
   sort: SortKey;
+  kind: TrackKind;
   apiOnline: boolean;
 }
 
 const VALID_SORTS: SortKey[] = ["newest", "top", "most_rated"];
 const DEFAULT_SORT: SortKey = "top";
+const VALID_KINDS: TrackKind[] = ["opening", "ending", "ost"];
+const DEFAULT_KIND: TrackKind = "opening";
 
 function pickSort(value: unknown): SortKey {
   return typeof value === "string" && (VALID_SORTS as string[]).includes(value)
@@ -38,22 +44,29 @@ function pickSort(value: unknown): SortKey {
     : DEFAULT_SORT;
 }
 
+function pickKind(value: unknown): TrackKind {
+  return typeof value === "string" && (VALID_KINDS as string[]).includes(value)
+    ? (value as TrackKind)
+    : DEFAULT_KIND;
+}
+
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await loadSession(ctx);
 
   const q = typeof ctx.query.q === "string" ? ctx.query.q.trim() : "";
   const sort = pickSort(ctx.query.sort);
+  const kind = pickKind(ctx.query.kind);
   const page = Number(ctx.query.page ?? 1) || 1;
 
   let openingsPage: OpeningPage;
-  let stats = { openings: 0, anime: 0, singers: 0 };
+  let kindCounts: KindCounts = { opening: 0, ending: 0, ost: 0 };
   let groups: Group[] = [];
   let apiOnline = true;
 
   try {
-    [openingsPage, stats] = await Promise.all([
-      listOpenings({ q, sort, page, cookie: session.cookie }),
-      getStats(session.cookie).catch(() => ({ openings: 0, anime: 0, singers: 0 })),
+    [openingsPage, kindCounts] = await Promise.all([
+      listOpenings({ q, sort, kind, page, cookie: session.cookie }),
+      getKindCounts(session.cookie).catch(() => ({ opening: 0, ending: 0, ost: 0 })),
     ]);
     if (session.user) {
       groups = session.mockGroups ?? await listMyGroups(session.cookie).catch(() => []);
@@ -61,7 +74,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   } catch {
     apiOnline = false;
     openingsPage = mockOpenings();
-    stats = mockStats();
+    kindCounts = { opening: 2418, ending: 1872, ost: 3104 };
     groups = session.mockGroups ?? (session.user ? mockGroups() : []);
   }
 
@@ -71,9 +84,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       modQueueCount: session.modQueueCount,
       page: openingsPage,
       groups,
-      stats,
+      kindCounts,
       q,
       sort,
+      kind,
       apiOnline,
     },
   };
@@ -90,9 +104,10 @@ export default function HomePage({
   modQueueCount,
   page,
   groups,
-  stats,
+  kindCounts,
   q,
   sort,
+  kind,
   apiOnline,
 }: Props) {
   const totalPages = Math.max(1, Math.ceil(page.total / page.per_page));
@@ -101,16 +116,27 @@ export default function HomePage({
     <Layout user={user} modQueueCount={modQueueCount} title="Opening Wiki">
       <div className="wrap">
         <SearchHeader
-          total={stats.openings || page.total}
-          anime={stats.anime}
-          singers={stats.singers}
+          total={kindCounts[kind] || page.total}
           q={q}
+          kind={kind}
+        />
+
+        <CatalogTabs
+          activeKind={kind}
+          counts={kindCounts}
+          q={q || undefined}
+          sort={sort !== DEFAULT_SORT ? sort : undefined}
         />
 
         <div className="page-grid">
           <div>
-            {/* Sort dropdown sits at the top of the openings column. */}
-            <SortBar total={page.total} sort={sort} basePath="/" q={q || undefined} />
+            <SortBar
+              total={page.total}
+              sort={sort}
+              basePath="/"
+              q={q || undefined}
+              kind={kind}
+            />
 
             <div className="cat">
               {page.items.map((op) => (
@@ -126,7 +152,11 @@ export default function HomePage({
               page={page.page}
               totalPages={totalPages}
               basePath="/"
-              query={{ q: q || undefined, sort: sort !== DEFAULT_SORT ? sort : undefined }}
+              query={{
+                kind,
+                q: q || undefined,
+                sort: sort !== DEFAULT_SORT ? sort : undefined,
+              }}
             />
           </div>
 

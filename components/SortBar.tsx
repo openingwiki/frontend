@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
-import type { SortKey } from "@/lib/types";
+import type { SortKey, TrackKind } from "@/lib/types";
 
 interface Props {
   total: number;
   sort: SortKey;
   basePath: string;
   q?: string;
+  kind?: TrackKind;
 }
 
 const OPTIONS: Array<{ key: SortKey; label: string; hint: string }> = [
@@ -16,8 +17,9 @@ const OPTIONS: Array<{ key: SortKey; label: string; hint: string }> = [
   { key: "most_rated", label: "Most rated", hint: "Largest rating count" },
 ];
 
-function buildHref(base: string, q: string | undefined, key: SortKey) {
+function buildHref(base: string, q: string | undefined, key: SortKey, kind?: TrackKind) {
   const params = new URLSearchParams();
+  if (kind) params.set("kind", kind);
   if (q) params.set("q", q);
   params.set("sort", key);
   return `${base}?${params.toString()}`;
@@ -34,7 +36,7 @@ const CHEVRON = (
 // router.push explicitly — that guarantees getServerSideProps re-runs and
 // the new sort actually takes effect (some Link/Link-onClick combos can
 // otherwise close the popup before the navigation fires).
-export default function SortBar({ total, sort, basePath, q }: Props) {
+export default function SortBar({ total, sort, basePath, q, kind }: Props) {
   const router = useRouter();
   const current = OPTIONS.find((o) => o.key === sort) ?? OPTIONS[0];
   const [open, setOpen] = useState(false);
@@ -63,7 +65,7 @@ export default function SortBar({ total, sort, basePath, q }: Props) {
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
     setOpen(false);
-    router.push(buildHref(basePath, q, key), undefined, { scroll: false });
+    router.push(buildHref(basePath, q, key, kind), undefined, { scroll: false });
   };
 
   return (
@@ -91,7 +93,7 @@ export default function SortBar({ total, sort, basePath, q }: Props) {
             {OPTIONS.map((o) => (
               <li key={o.key}>
                 <Link
-                  href={buildHref(basePath, q, o.key)}
+                  href={buildHref(basePath, q, o.key, kind)}
                   className={`sort-pop-item${sort === o.key ? " on" : ""}`}
                   onClick={(e) => select(o.key, e)}
                   role="option"
