@@ -15,6 +15,7 @@ import type {
   SearchResults,
   SingerDetail,
   SortKey,
+  TrackKind,
   User,
   UserRating,
 } from "./types";
@@ -67,6 +68,7 @@ function getCsrfTokenFromCookieHeader(cookieHeader?: string): string | null {
 function normalizeOpening(opening: any): Opening {
   return {
     ...opening,
+    kind: opening.kind ?? "opening",
     status: opening.status ?? "approved",
     submitted_at: opening.submitted_at ?? opening.approved_at ?? new Date(0).toISOString(),
   };
@@ -140,6 +142,7 @@ export class ApiError extends Error {
 export interface ListOpeningsParams {
   q?: string;
   sort?: SortKey;
+  kind?: TrackKind;
   page?: number;
   cookie?: string;
 }
@@ -148,6 +151,7 @@ export function listOpenings(p: ListOpeningsParams = {}): Promise<OpeningPage> {
   const qs = new URLSearchParams();
   if (p.q) qs.set("q", p.q);
   if (p.sort) qs.set("sort", p.sort);
+  if (p.kind) qs.set("kind", p.kind);
   if (p.page) qs.set("page", String(p.page));
   const query = qs.toString();
 
@@ -305,6 +309,24 @@ export function getStats(cookie?: string): Promise<CatalogStats> {
     openings: page.total,
     anime: 0,
     singers: 0,
+  }));
+}
+
+export interface KindCounts {
+  opening: number;
+  ending: number;
+  ost: number;
+}
+
+export function getKindCounts(cookie?: string): Promise<KindCounts> {
+  return Promise.all([
+    listOpenings({ kind: "opening", page: 1, cookie }),
+    listOpenings({ kind: "ending",  page: 1, cookie }),
+    listOpenings({ kind: "ost",     page: 1, cookie }),
+  ]).then(([op, ed, ost]) => ({
+    opening: op.total,
+    ending:  ed.total,
+    ost:     ost.total,
   }));
 }
 

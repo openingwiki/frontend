@@ -29,10 +29,13 @@ export interface Singer {
   status: SubmissionStatus;
 }
 
+export type TrackKind = "opening" | "ending" | "ost";
+
 export interface Opening {
   id: string;
   title: string;
   youtube_url: string;
+  kind: TrackKind;
   anime: Pick<Anime, "id" | "name">;
   singer: Pick<Singer, "id" | "name">;
   status: SubmissionStatus;

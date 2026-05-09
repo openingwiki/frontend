@@ -130,6 +130,43 @@ input, select { font: inherit; color: inherit; }
   border: 1px solid var(--line-2); border-radius: 3px; padding: 2px 6px;
 }
 
+/* CATALOG TABS — Openings / Endings / OSTs */
+.cat-tabs {
+  display: flex; gap: 2px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--line);
+}
+.cat-tab {
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 10px 20px 12px;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-3);
+  transition: color .15s, border-color .15s, background .15s;
+  text-decoration: none;
+}
+.cat-tab:hover { color: var(--fg-2); background: var(--bg-2); }
+.cat-tab.on {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+  background: var(--bg-2);
+}
+.cat-tab-label {
+  display: flex; align-items: baseline; gap: 7px;
+  font-family: var(--sans); font-size: 14px; font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.cat-tab-count {
+  font-family: var(--mono); font-size: 11px; color: var(--fg-3);
+  font-weight: 400;
+}
+.cat-tab.on .cat-tab-count { color: var(--accent); }
+.cat-tab-sub {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-4);
+  letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px;
+}
+.cat-tab.on .cat-tab-sub { color: var(--fg-3); }
+
 /* SORT BAR — compact, single row */
 .sort-bar {
   display: flex; align-items: center; gap: 16px;
@@ -378,9 +415,13 @@ footer {
   padding: 24px 0;
   font-family: var(--mono); font-size: 11px; color: var(--fg-4);
 }
-.foot-inner { display: flex; justify-content: space-between; align-items: center; }
-footer a { color: var(--fg-3); margin-right: 18px; }
-footer a:hover { color: var(--fg-2); }
+.foot-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.foot-links { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+footer a { color: var(--fg-3); padding: 4px 8px; border-radius: 5px; transition: color .15s, background .15s; }
+footer a:hover { color: var(--fg-2); background: var(--bg-2); }
+.foot-sep { width: 1px; height: 12px; background: var(--line-2); margin: 0 4px; }
+.foot-brand { display: flex; align-items: center; gap: 7px; color: var(--fg-4); }
+.foot-mark { display: inline-block; width: 10px; height: 10px; border-radius: 3px; background: var(--accent); opacity: 0.5; }
 
 /* Generic form-page styles (used by /login, /signup, /submit) */
 .formpage { max-width: 460px; margin: 64px auto; padding: 0 var(--pad); }

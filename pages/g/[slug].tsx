@@ -37,6 +37,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 function asOpening(item: GroupOpening): Opening {
   return {
     ...item,
+    kind: "opening",
     status: "approved",
     submitted_by_user_id: "",
     submitted_at: "",
