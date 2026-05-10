@@ -6,9 +6,11 @@ import CommentsSection from "@/components/CommentsSection";
 import GroupAddMenu from "@/components/GroupAddMenu";
 import {
   getAdjacentOpenings,
+  getAnime,
   getMyGroup,
   getMyRating,
   getOpening,
+  getSinger,
   listMyGroups,
   listOpeningComments,
 } from "@/lib/api";
@@ -20,14 +22,16 @@ import {
 } from "@/lib/mock";
 import type {
   AdjacentOpenings,
+  AnimeOpening,
   Group,
   Opening,
   OpeningComment,
+  SingerOpening,
   SortKey,
+  TrackKind,
   User,
   UserRating,
 } from "@/lib/types";
-import { youtubeEmbedURL } from "@/lib/youtube";
 
 interface Props {
   user: User | null;
@@ -37,12 +41,17 @@ interface Props {
   // server-side by fetching each /me/groups/{id} in parallel.
   initialMemberships: string[];
   opening: Opening | null;
-  embedUrl: string | null;
   adjacent: AdjacentOpenings;
   userRating: UserRating | null;
   initialComments: OpeningComment[];
   commentsAvailable: boolean;
   apiOnline: boolean;
+  animeOpenings: AnimeOpening[];
+  animeName: string;
+  animeId: string;
+  singerOpenings: SingerOpening[];
+  singerName: string;
+  singerId: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +74,13 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   let commentsAvailable = true;
   let apiOnline = true;
 
+  let animeOpenings: AnimeOpening[] = [];
+  let animeName = "";
+  let animeId = "";
+  let singerOpenings: SingerOpening[] = [];
+  let singerName = "";
+  let singerId = "";
+
   try {
     [opening, adjacent] = await Promise.all([
       getOpening(id, session.cookie),
@@ -72,6 +88,23 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
         (): AdjacentOpenings => ({ prev: null, next: null }),
       ),
     ]);
+
+    if (opening) {
+      const [animeDetail, singerDetail] = await Promise.all([
+        getAnime(opening.anime.id, session.cookie).catch(() => null),
+        getSinger(opening.singer.id, session.cookie).catch(() => null),
+      ]);
+      if (animeDetail) {
+        animeOpenings = animeDetail.openings;
+        animeName = animeDetail.title_english ?? animeDetail.title_romaji ?? animeDetail.name;
+        animeId = animeDetail.id;
+      }
+      if (singerDetail) {
+        singerOpenings = singerDetail.openings;
+        singerName = singerDetail.name;
+        singerId = singerDetail.id;
+      }
+    }
 
     if (session.user && opening) {
       // Fetch the user's actual groups so the "Save to groups" menu in the
@@ -130,12 +163,17 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       groups,
       initialMemberships,
       opening,
-      embedUrl: youtubeEmbedURL(opening.youtube_url),
       adjacent,
       userRating,
       initialComments,
       commentsAvailable,
       apiOnline,
+      animeOpenings,
+      animeName,
+      animeId,
+      singerOpenings,
+      singerName,
+      singerId,
     },
   };
 };
@@ -188,6 +226,97 @@ function OpeningNav({ adjacent }: { adjacent: AdjacentOpenings }) {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function kindLabel(kind: TrackKind, seq: number | null): string {
+  const tag = kind === "opening" ? "OP" : kind === "ending" ? "ED" : "OST";
+  return seq != null ? `${tag} ${seq}` : tag;
+}
+
+function kindClass(kind: TrackKind): string {
+  if (kind === "opening") return "op";
+  if (kind === "ending") return "ed";
+  return "ost";
+}
+
+// ---------------------------------------------------------------------------
+// Rail widget
+// ---------------------------------------------------------------------------
+
+interface RailItem {
+  id: string;
+  title: string;
+  kind: TrackKind;
+  sequence_number: number | null;
+  avg_rating: number;
+  rating_count: number;
+  subtitle: string;
+}
+
+function Rail({
+  heading,
+  pageHref,
+  pageLinkLabel,
+  items,
+  currentId,
+}: {
+  heading: React.ReactNode;
+  pageHref: string;
+  pageLinkLabel: string;
+  items: RailItem[];
+  currentId: string;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <section className="rail-section">
+      <div className="sec-head">
+        <h2 className="sec-h2">{heading}</h2>
+        <span className="sec-count">{items.length}</span>
+        <span className="spacer" />
+        <Link href={pageHref} className="all-link">{pageLinkLabel} →</Link>
+      </div>
+      <div className="rail">
+        {items.map((item, i) => {
+          const isCurrent = item.id === currentId;
+          return (
+            <Link
+              key={item.id}
+              href={`/openings/${item.id}`}
+              className={`rail-card${isCurrent ? " current-card" : ""}`}
+            >
+              <div className={`rail-thumb p-${(i % 6) + 1}${isCurrent ? " current" : ""}`}>
+                <span className={`rail-seq ${kindClass(item.kind)}${isCurrent ? " current" : ""}`}>
+                  {kindLabel(item.kind, item.sequence_number)}
+                </span>
+                {isCurrent && <span className="rail-now">now playing</span>}
+                {!isCurrent && (
+                  <span className="rail-play">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </span>
+                )}
+              </div>
+              <div className="rail-meta">
+                <div className="rail-title">{item.title}</div>
+                <div className="rail-sub">{item.subtitle}</div>
+                {item.rating_count > 0 && (
+                  <div className="rail-rating">
+                    {item.avg_rating.toFixed(1)}<em>/10</em>
+                    <span className="rail-ct">{item.rating_count}</span>
+                  </div>
+                )}
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -197,14 +326,39 @@ export default function OpeningDetail({
   groups,
   initialMemberships,
   opening,
-  embedUrl,
   adjacent,
   userRating,
   initialComments,
   commentsAvailable,
   apiOnline,
+  animeOpenings,
+  animeName,
+  animeId,
+  singerOpenings,
+  singerName,
+  singerId,
 }: Props) {
   const op = opening!;
+
+  const animeRailItems = animeOpenings.map((ao) => ({
+    id: ao.id,
+    title: ao.title,
+    kind: ao.kind,
+    sequence_number: ao.sequence_number,
+    avg_rating: ao.avg_rating,
+    rating_count: ao.rating_count,
+    subtitle: ao.singer.name,
+  }));
+
+  const singerRailItems = singerOpenings.map((so) => ({
+    id: so.id,
+    title: so.title,
+    kind: so.kind,
+    sequence_number: so.sequence_number,
+    avg_rating: so.avg_rating,
+    rating_count: so.rating_count,
+    subtitle: so.anime.name,
+  }));
 
   return (
     <Layout
@@ -234,16 +388,19 @@ export default function OpeningDetail({
         <div className="detail-grid">
           <div>
             <div className="detail-video">
-              {embedUrl ? (
-                <iframe
-                  src={embedUrl}
-                  title={op.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : (
-                <div className="detail-no-video">Video unavailable</div>
-              )}
+              <a
+                href={op.youtube_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`detail-thumb p-${((op.pattern ?? 1) - 1) % 6 + 1}`}
+              >
+                <span className="detail-thumb-play">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </span>
+                <span className="detail-thumb-label">Watch on YouTube</span>
+              </a>
             </div>
 
             <div className="detail-meta-row">
@@ -315,6 +472,22 @@ export default function OpeningDetail({
               user={user}
               initialComments={initialComments}
               available={commentsAvailable}
+            />
+
+            <Rail
+              heading={<>More from <em>{animeName}</em></>}
+              pageHref={`/anime/${animeId}`}
+              pageLinkLabel="Anime page"
+              items={animeRailItems}
+              currentId={op.id}
+            />
+
+            <Rail
+              heading={<>More from <em>{singerName}</em></>}
+              pageHref={`/singers/${singerId}`}
+              pageLinkLabel="Singer page"
+              items={singerRailItems}
+              currentId={op.id}
             />
           </div>
 
