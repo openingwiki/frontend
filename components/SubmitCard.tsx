@@ -15,7 +15,7 @@ export default function SubmitCard({ authed }: Props) {
         anime, and singer.
       </p>
       <Link href={href} className="btn primary">
-        + Submit an opening
+        + Submit
       </Link>
     </div>
   );

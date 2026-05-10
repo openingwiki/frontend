@@ -36,7 +36,9 @@ export default function Topbar({ user }: Props) {
 
         <div className="top-right">
           {user ? (
-            <Link href="/me" className="topbar-me">
+            <>
+              <Link href="/submit" className="btn primary sm">+ Submit</Link>
+              <Link href="/me" className="topbar-me">
               <span className="topbar-avatar" aria-hidden>
                 {user.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -47,6 +49,7 @@ export default function Topbar({ user }: Props) {
               </span>
               <span className="topbar-name">{user.display_name}</span>
             </Link>
+            </>
           ) : (
             <>
               <Link href="/login" className="btn ghost">Log in</Link>
