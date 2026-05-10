@@ -169,6 +169,8 @@ export interface SingerOpening {
   id: string;
   title: string;
   youtube_url: string;
+  kind: TrackKind;
+  sequence_number: number | null;
   avg_rating: number;
   rating_count: number;
   approved_at: string | null;
@@ -193,6 +195,8 @@ export interface AnimeDetail {
 export interface SingerDetail {
   id: string;
   name: string;
+  name_native: string | null;
+  type: SingerType;
   cover_image_url: string | null;
   openings: SingerOpening[];
 }

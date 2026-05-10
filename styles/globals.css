@@ -2128,6 +2128,106 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   .anime-stats { grid-template-columns: repeat(2, auto); gap: 16px; }
 }
 
+/* ── Singer page ──────────────────────────────────────────────────────────── */
+.singer-hero {
+  display: grid; grid-template-columns: 180px 1fr; gap: 36px;
+  align-items: start; padding: 8px 0 36px;
+  border-bottom: 1px solid var(--line);
+}
+.singer-portrait {
+  width: 180px; height: 180px; border-radius: 50%;
+  border: 1px solid var(--line-2); background: var(--bg-2);
+  background-image: repeating-linear-gradient(60deg, #1a1628 0 12px, #2a2240 12px 13px);
+  overflow: hidden; display: grid; place-items: center;
+}
+.singer-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.singer-portrait-ph {
+  color: var(--fg-3); font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; text-align: center; padding: 0 14px;
+}
+.singer-portrait-ph strong { display: block; color: var(--fg-2); font-weight: 600; margin-bottom: 4px; font-size: 11px; }
+.singer-hero-meta { padding-top: 6px; }
+.singer-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 12px;
+}
+.singer-type-pill {
+  color: var(--fg-3); border: 1px solid var(--line-2);
+  padding: 2px 8px; border-radius: 3px; letter-spacing: 0.1em;
+}
+.singer-title {
+  margin: 0 0 4px; font-weight: 800;
+  font-size: 52px; line-height: 0.98; letter-spacing: -0.04em;
+}
+.singer-native { font-size: 18px; color: var(--fg-3); letter-spacing: 0.04em; margin-bottom: 22px; }
+.singer-stats {
+  display: grid; grid-template-columns: repeat(4, auto); gap: 24px; justify-content: start;
+  border-top: 1px solid var(--line); padding-top: 18px; margin-bottom: 24px;
+}
+.singer-stat { display: flex; flex-direction: column; gap: 4px; }
+.sst-lbl { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-3); }
+.sst-val { font-weight: 700; font-size: 22px; letter-spacing: -0.02em; line-height: 1; }
+.sst-val em { font-style: normal; font-family: var(--mono); font-weight: 400; font-size: 12px; color: var(--fg-3); }
+.singer-actions { display: flex; gap: 10px; }
+
+/* Singer track list */
+.singer-entries {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg-2); overflow: hidden; margin-bottom: 60px;
+}
+.singer-entry {
+  display: grid; grid-template-columns: 72px 1fr auto; gap: 16px;
+  align-items: center; padding: 12px 18px;
+  border-bottom: 1px solid var(--line); transition: background .1s;
+}
+.singer-entry:last-child { border-bottom: 0; }
+.singer-entry:hover { background: var(--bg-3); }
+.singer-e-thumb {
+  width: 72px; aspect-ratio: 16/9; border-radius: 4px;
+  border: 1px solid var(--line-2); position: relative; overflow: hidden;
+}
+.singer-e-thumb.p-1 { background-image: repeating-linear-gradient(45deg, #1a1628 0 8px, #221c33 8px 9px); }
+.singer-e-thumb.p-2 { background-image: repeating-linear-gradient(90deg, #1a1628 0 8px, #241e36 8px 9px); }
+.singer-e-thumb.p-3 { background-image: repeating-linear-gradient(-45deg, #1a1628 0 8px, #1f1a30 8px 9px); }
+.singer-e-thumb.p-4 { background-image: repeating-linear-gradient(135deg, #1a1628 0 8px, #1f1a30 8px 9px); }
+.singer-e-thumb.p-5 { background-image: repeating-linear-gradient(0deg, #1a1628 0 8px, #231d34 8px 9px); }
+.singer-e-thumb.p-6 { background-image: repeating-linear-gradient(60deg, #1a1628 0 8px, #241e36 8px 9px); }
+.singer-e-play {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  opacity: 0; transition: opacity .15s; background: rgba(0,0,0,.4); color: #fff;
+}
+.singer-entry:hover .singer-e-play { opacity: 1; }
+.singer-e-meta { min-width: 0; }
+.singer-e-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.singer-e-title { font-weight: 600; font-size: 15px; letter-spacing: -0.015em; color: var(--fg); }
+.singer-e-sub { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.singer-e-anime { color: var(--fg-3); transition: color .15s; }
+.singer-e-anime:hover { color: var(--accent); }
+.singer-e-score { text-align: right; white-space: nowrap; }
+.singer-e-score .n { font-weight: 700; font-size: 16px; letter-spacing: -0.02em; }
+.singer-e-score .n em { color: var(--fg-4); font-style: normal; font-size: 11px; font-family: var(--mono); font-weight: 400; }
+.singer-e-score .ct { font-family: var(--mono); font-size: 10px; color: var(--fg-4); }
+
+/* e-tag reused from design (OP/ED/OST badges) */
+.e-tag {
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 3px;
+  border: 1px solid var(--line-2); color: var(--fg-3);
+  flex-shrink: 0; white-space: nowrap;
+}
+.e-tag.op  { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 50%, transparent); }
+.e-tag.ed  { color: var(--ok);     border-color: color-mix(in oklab, var(--ok) 50%, transparent); }
+.e-tag.ost { color: var(--warn);   border-color: color-mix(in oklab, var(--warn) 50%, transparent); }
+
+@media (max-width: 768px) {
+  .singer-hero { grid-template-columns: 120px 1fr; gap: 20px; }
+  .singer-title { font-size: 36px; }
+  .singer-stats { grid-template-columns: repeat(2, auto); gap: 16px; }
+}
+
 /* ── Opening Edit page ────────────────────────────────────────────────────── */
 .edit-rolebar {
   background: var(--bg-2); border-bottom: 1px solid var(--line);

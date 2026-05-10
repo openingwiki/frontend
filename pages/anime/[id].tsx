@@ -2,6 +2,7 @@ import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import { useState } from "react";
 import Layout from "@/components/Layout";
+import LocalSortDropdown from "@/components/LocalSortDropdown";
 import { getAnime } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import type { AnimeDetail, AnimeOpening, TrackKind, User } from "@/lib/types";
@@ -92,10 +93,10 @@ export default function AnimePage({ user, modQueueCount, anime }: Props) {
     { key: "ost",     label: "OSTs",     count: osts.length },
   ];
 
-  const SORT_OPTIONS: { key: typeof sort; label: string }[] = [
-    { key: "sequence", label: "Sequence" },
-    { key: "top",      label: "Top rated" },
-    { key: "newest",   label: "Newest" },
+  const SORT_OPTIONS: { key: typeof sort; label: string; hint: string }[] = [
+    { key: "sequence", label: "Sequence",  hint: "OPs → EDs → OSTs by number" },
+    { key: "top",      label: "Top rated", hint: "Highest average score" },
+    { key: "newest",   label: "Newest",    hint: "Recently approved first" },
   ];
 
   const filterLabel: Record<FilterTab, string> = {
@@ -191,17 +192,12 @@ export default function AnimePage({ user, modQueueCount, anime }: Props) {
             <span className="sort-count">{visible.length}</span>{" "}
             <span>{filterLabel[filter]}</span>
           </span>
-          <span style={{ flex: 1 }} />
-          <span className="sort-label">Sort</span>
-          {SORT_OPTIONS.map((o) => (
-            <button
-              key={o.key}
-              className={`sort-btn${sort === o.key ? " on" : ""}`}
-              onClick={() => setSort(o.key)}
-            >
-              {o.label}
-            </button>
-          ))}
+          <span className="spacer" />
+          <LocalSortDropdown
+            options={SORT_OPTIONS}
+            value={sort}
+            onChange={setSort}
+          />
         </div>
 
         {/* Grid */}
