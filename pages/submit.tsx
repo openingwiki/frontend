@@ -78,24 +78,18 @@ function CoverUpload({ entityType, aspect = "poster", onUploaded }: CoverUploadP
     const localUrl = URL.createObjectURL(file);
     setPreview(localUrl);
     try {
-      // 1. Get presigned URL
-      const initRes = await fetch("/api/uploads/cover", {
+      const fd = new FormData();
+      fd.append("file", file, file.name);
+      const res = await fetch(`/api/uploads/cover?entity_type=${entityType}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, content_type: file.type, entity_type: entityType }),
+        body: fd,
       });
-      if (!initRes.ok) throw new Error("Failed to get upload URL");
-      const { object_key, upload_url, headers: extraHeaders } = await initRes.json();
-
-      // 2. PUT directly to S3
-      const putRes = await fetch(upload_url, {
-        method: "PUT",
-        headers: { "Content-Type": file.type, ...extraHeaders },
-        body: file,
-      });
-      if (!putRes.ok) throw new Error(`S3 upload failed (${putRes.status})`);
-
-      onUploaded(object_key, localUrl);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error ?? `Upload failed (${res.status})`);
+      }
+      const { object_key, public_url } = await res.json();
+      onUploaded(object_key, public_url || localUrl);
     } catch (err) {
       setUploadErr(err instanceof Error ? err.message : "Upload failed");
       setPreview(null);
