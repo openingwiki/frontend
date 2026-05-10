@@ -4,6 +4,9 @@ export type Role = "user" | "moderator" | "admin";
 
 export type SubmissionStatus = "pending" | "approved" | "rejected";
 
+export type AnimeFormat = "tv" | "film" | "ova_ona" | "special";
+export type SingerType = "solo" | "band" | "idol_group" | "vocaloid_producer" | "composer" | "other";
+
 export interface User {
   id: string;
   email: string;
@@ -17,19 +20,39 @@ export interface User {
 export interface Anime {
   id: string;
   name: string;
-  cover_image_key: string | null;
+  title_romaji: string;
+  title_english: string | null;
+  year: number;
+  format: AnimeFormat;
+  cover_image_url: string | null;
+  is_placeholder: boolean;
   status: SubmissionStatus;
-  created_by_user_id: string;
 }
 
 export interface Singer {
   id: string;
   name: string;
-  cover_image_key: string | null;
+  type: SingerType;
+  cover_image_url: string | null;
+  is_placeholder: boolean;
   status: SubmissionStatus;
 }
 
 export type TrackKind = "opening" | "ending" | "ost";
+
+export interface AnimeAutocompleteItem {
+  id: string;
+  name: string;
+  title_romaji: string;
+  format: AnimeFormat;
+  year: number;
+}
+
+export interface SingerAutocompleteItem {
+  id: string;
+  name: string;
+  type: SingerType;
+}
 
 export interface Opening {
   id: string;
@@ -38,6 +61,8 @@ export interface Opening {
   kind: TrackKind;
   anime: Pick<Anime, "id" | "name">;
   singer: Pick<Singer, "id" | "name">;
+  legacy_anime_name?: string | null;
+  legacy_singer_name?: string | null;
   status: SubmissionStatus;
   submitted_by_user_id: string;
   submitted_at: string;
