@@ -251,9 +251,9 @@ export default function OpeningDetail({
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h1 className="detail-title">{op.title}</h1>
                 <div className="detail-sub">
-                  <span className="detail-link">{op.anime.name}</span>
+                  <Link href={`/anime/${op.anime.id}`} className="detail-link">{op.anime.name}</Link>
                   <span className="detail-sep"> · </span>
-                  <span className="detail-link">{op.singer.name}</span>
+                  <Link href={`/singers/${op.singer.id}`} className="detail-link">{op.singer.name}</Link>
                 </div>
               </div>
               {/* Rating popup is anchored here — its trigger lives where the

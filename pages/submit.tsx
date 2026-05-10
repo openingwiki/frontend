@@ -1,6 +1,6 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/router";
 import Layout from "@/components/Layout";
 import Autocomplete, { type AutocompleteItem } from "@/components/Autocomplete";
@@ -48,6 +48,113 @@ async function fetchSingerItems(q: string): Promise<AutocompleteItem[]> {
     label: s.name,
     sublabel: (s.type ?? "").replace(/_/g, " "),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Cover upload
+// ---------------------------------------------------------------------------
+
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+interface CoverUploadProps {
+  entityType: "anime" | "singer";
+  aspect?: "poster" | "square"; // poster = 2:3, square = 1:1
+  onUploaded: (objectKey: string, previewUrl: string) => void;
+}
+
+function CoverUpload({ entityType, aspect = "poster", onUploaded }: CoverUploadProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState<string | null>(null);
+
+  const handleFile = useCallback(async (file: File) => {
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setUploadErr("JPEG, PNG, or WebP only");
+      return;
+    }
+    setUploading(true);
+    setUploadErr(null);
+    const localUrl = URL.createObjectURL(file);
+    setPreview(localUrl);
+    try {
+      // 1. Get presigned URL
+      const initRes = await fetch("/api/uploads/cover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, content_type: file.type, entity_type: entityType }),
+      });
+      if (!initRes.ok) throw new Error("Failed to get upload URL");
+      const { object_key, upload_url, headers: extraHeaders } = await initRes.json();
+
+      // 2. PUT directly to S3
+      const putRes = await fetch(upload_url, {
+        method: "PUT",
+        headers: { "Content-Type": file.type, ...extraHeaders },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error(`S3 upload failed (${putRes.status})`);
+
+      onUploaded(object_key, localUrl);
+    } catch (err) {
+      setUploadErr(err instanceof Error ? err.message : "Upload failed");
+      setPreview(null);
+      URL.revokeObjectURL(localUrl);
+    } finally {
+      setUploading(false);
+    }
+  }, [entityType, onUploaded]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
+
+  return (
+    <div className={`cover-upload ${aspect}`}>
+      <div
+        className={`cover-zone${preview ? " has-preview" : ""}`}
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
+      >
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt="Cover preview" className="cover-preview-img" />
+        ) : (
+          <div className="cover-ph">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="m21 15-5-5L5 21"/>
+            </svg>
+            <span>{uploading ? "Uploading…" : "Click or drop image"}</span>
+            <span className="cover-ph-sub">JPEG · PNG · WebP</span>
+          </div>
+        )}
+      </div>
+      {!preview && (
+        <button type="button" className="btn sm" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          {uploading ? "Uploading…" : "Choose file"}
+        </button>
+      )}
+      {preview && (
+        <button type="button" className="btn sm ghost" onClick={() => { setPreview(null); onUploaded("", ""); }}>
+          Remove
+        </button>
+      )}
+      {uploadErr && <span className="ferr">{uploadErr}</span>}
+      <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} onChange={handleChange} />
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -291,6 +398,7 @@ function AnimePane() {
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setF((prev) => ({ ...prev, [k]: e.target.value }));
 
+  const [coverKey, setCoverKey] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -305,7 +413,7 @@ function AnimePane() {
     const res = await fetch("/api/anime", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...f, year: Number(f.year) || 0, episodes: f.episodes ? Number(f.episodes) : undefined }),
+      body: JSON.stringify({ ...f, year: Number(f.year) || 0, episodes: f.episodes ? Number(f.episodes) : undefined, cover_image_key: coverKey }),
     });
 
     setSubmitting(false);
@@ -341,7 +449,14 @@ function AnimePane() {
         </div>
         <div className="sub-form-body">
 
-          <div className="sub-section"><span className="sub-step">01</span> Titles</div>
+          <div className="sub-section"><span className="sub-step">01</span> Cover image <span className="opt">(optional)</span></div>
+          <CoverUpload
+            entityType="anime"
+            aspect="poster"
+            onUploaded={(key) => setCoverKey(key)}
+          />
+
+          <div className="sub-section"><span className="sub-step">02</span> Titles</div>
           <div className="sub-row">
             <label>English title <span className="req">*</span></label>
             <input type="text" value={f.title_english} onChange={set("title_english")} placeholder="Attack on Titan" />
@@ -359,7 +474,7 @@ function AnimePane() {
             </div>
           </div>
 
-          <div className="sub-section"><span className="sub-step">02</span> Production</div>
+          <div className="sub-section"><span className="sub-step">03</span> Production</div>
           <div className="sub-grid-3">
             <div className="sub-row">
               <label>Year <span className="req">*</span></label>
@@ -382,7 +497,7 @@ function AnimePane() {
             <input type="text" value={f.studio} onChange={set("studio")} placeholder="Wit Studio · MAPPA" />
           </div>
 
-          <div className="sub-section"><span className="sub-step">03</span> Verification</div>
+          <div className="sub-section"><span className="sub-step">04</span> Verification</div>
           <div className="sub-row">
             <label>Reference link <span className="req">*</span></label>
             <input type="url" value={f.reference_url} onChange={set("reference_url")} placeholder="https://anilist.co/anime/… or MyAnimeList / official site" />
@@ -430,6 +545,7 @@ function SingerPane() {
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setF((prev) => ({ ...prev, [k]: e.target.value }));
 
+  const [coverKey, setCoverKey] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -444,7 +560,7 @@ function SingerPane() {
     const res = await fetch("/api/singers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...f, active_since: f.active_since ? Number(f.active_since) : undefined }),
+      body: JSON.stringify({ ...f, active_since: f.active_since ? Number(f.active_since) : undefined, cover_image_key: coverKey }),
     });
 
     setSubmitting(false);
@@ -480,7 +596,14 @@ function SingerPane() {
         </div>
         <div className="sub-form-body">
 
-          <div className="sub-section"><span className="sub-step">01</span> Identity</div>
+          <div className="sub-section"><span className="sub-step">01</span> Photo <span className="opt">(optional)</span></div>
+          <CoverUpload
+            entityType="singer"
+            aspect="square"
+            onUploaded={(key) => setCoverKey(key)}
+          />
+
+          <div className="sub-section"><span className="sub-step">02</span> Identity</div>
           <div className="sub-row">
             <label>Name <span className="req">*</span></label>
             <input type="text" value={f.name} onChange={set("name")} placeholder="YOASOBI" />
@@ -492,7 +615,7 @@ function SingerPane() {
             <input type="text" value={f.name_native} onChange={set("name_native")} placeholder="ヨアソビ" />
           </div>
 
-          <div className="sub-section"><span className="sub-step">02</span> About</div>
+          <div className="sub-section"><span className="sub-step">03</span> About</div>
           <div className="sub-grid-2">
             <div className="sub-row">
               <label>Type <span className="req">*</span></label>
@@ -511,7 +634,7 @@ function SingerPane() {
             <textarea value={f.bio} onChange={set("bio")} rows={3} placeholder="One or two sentences. Genres, notable works, anything that helps recognize them." />
           </div>
 
-          <div className="sub-section"><span className="sub-step">03</span> Verification</div>
+          <div className="sub-section"><span className="sub-step">04</span> Verification</div>
           <div className="sub-row">
             <label>Reference link <span className="req">*</span></label>
             <input type="url" value={f.reference_url} onChange={set("reference_url")} placeholder="Official site, Spotify, Wikipedia…" />

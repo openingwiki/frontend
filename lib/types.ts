@@ -155,6 +155,8 @@ export interface AnimeOpening {
   id: string;
   title: string;
   youtube_url: string;
+  kind: TrackKind;
+  sequence_number: number | null;
   avg_rating: number;
   rating_count: number;
   approved_at: string | null;
@@ -174,6 +176,14 @@ export interface SingerOpening {
 export interface AnimeDetail {
   id: string;
   name: string;
+  title_romaji: string;
+  title_english: string | null;
+  title_native: string | null;
+  year: number;
+  format: AnimeFormat;
+  episodes: number | null;
+  studio: string | null;
+  reference_url: string;
   cover_image_url: string | null;
   openings: AnimeOpening[];
 }
