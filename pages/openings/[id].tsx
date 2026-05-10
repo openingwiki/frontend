@@ -1,6 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import Layout from "@/components/Layout";
+import { youtubeEmbedURL } from "@/lib/youtube";
 import RatingPopup from "@/components/RatingPopup";
 import CommentsSection from "@/components/CommentsSection";
 import GroupAddMenu from "@/components/GroupAddMenu";
@@ -388,19 +389,16 @@ export default function OpeningDetail({
         <div className="detail-grid">
           <div>
             <div className="detail-video">
-              <a
-                href={op.youtube_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`detail-thumb p-${((op.pattern ?? 1) - 1) % 6 + 1}`}
-              >
-                <span className="detail-thumb-play">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5v14l11-7z"/>
-                  </svg>
-                </span>
-                <span className="detail-thumb-label">Watch on YouTube</span>
-              </a>
+              {youtubeEmbedURL(op.youtube_url) ? (
+                <iframe
+                  src={youtubeEmbedURL(op.youtube_url)!}
+                  title={op.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : (
+                <div className="detail-no-video">Video unavailable</div>
+              )}
             </div>
 
             <div className="detail-meta-row">
@@ -467,13 +465,6 @@ export default function OpeningDetail({
               )}
             </div>
 
-            <CommentsSection
-              openingId={op.id}
-              user={user}
-              initialComments={initialComments}
-              available={commentsAvailable}
-            />
-
             <Rail
               heading={<>More from <em>{animeName}</em></>}
               pageHref={`/anime/${animeId}`}
@@ -488,6 +479,13 @@ export default function OpeningDetail({
               pageLinkLabel="Singer page"
               items={singerRailItems}
               currentId={op.id}
+            />
+
+            <CommentsSection
+              openingId={op.id}
+              user={user}
+              initialComments={initialComments}
+              available={commentsAvailable}
             />
           </div>
 
