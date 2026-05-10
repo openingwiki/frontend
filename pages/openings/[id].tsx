@@ -4,7 +4,6 @@ import Layout from "@/components/Layout";
 import RatingPopup from "@/components/RatingPopup";
 import CommentsSection from "@/components/CommentsSection";
 import GroupAddMenu from "@/components/GroupAddMenu";
-import AdminDeleteOpening from "@/components/AdminDeleteOpening";
 import {
   getAdjacentOpenings,
   getMyGroup,
@@ -299,8 +298,16 @@ export default function OpeningDetail({
                 <span className="detail-attr-label">YouTube</span>
                 <span className="detail-attr-val">↗ Watch on YouTube</span>
               </a>
-              {/* Renders nothing for non-admins. */}
-              <AdminDeleteOpening user={user} openingId={op.id} openingTitle={op.title} />
+              {/* Admin-only edit link */}
+              {user?.role === "admin" && (
+                <Link
+                  href={`/openings/${op.id}/edit`}
+                  className="detail-attr detail-attr-link"
+                >
+                  <span className="detail-attr-label">Admin</span>
+                  <span className="detail-attr-val">✎ Edit opening</span>
+                </Link>
+              )}
             </div>
 
             <CommentsSection
