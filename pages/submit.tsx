@@ -343,15 +343,15 @@ function AnimePane() {
 
           <div className="sub-section"><span className="sub-step">01</span> Titles</div>
           <div className="sub-row">
-            <label>Romaji title <span className="req">*</span></label>
-            <input type="text" value={f.title_romaji} onChange={set("title_romaji")} placeholder="Shingeki no Kyojin" />
-            <span className="hint">The latin-script transliteration. Used as the canonical key.</span>
-            {fieldErrors.title_romaji && <span className="ferr">{fieldErrors.title_romaji}</span>}
+            <label>English title <span className="req">*</span></label>
+            <input type="text" value={f.title_english} onChange={set("title_english")} placeholder="Attack on Titan" />
+            {fieldErrors.title_english && <span className="ferr">{fieldErrors.title_english}</span>}
           </div>
           <div className="sub-grid-2">
             <div className="sub-row">
-              <label>English title <span className="opt">(optional)</span></label>
-              <input type="text" value={f.title_english} onChange={set("title_english")} placeholder="Attack on Titan" />
+              <label>Romaji title <span className="opt">(optional)</span></label>
+              <input type="text" value={f.title_romaji} onChange={set("title_romaji")} placeholder="Shingeki no Kyojin" />
+              <span className="hint">Latin-script transliteration, if different from English.</span>
             </div>
             <div className="sub-row">
               <label>Native (日本語) <span className="opt">(optional)</span></label>
