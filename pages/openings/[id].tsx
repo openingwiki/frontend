@@ -1,7 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import Layout from "@/components/Layout";
-import { youtubeEmbedURL } from "@/lib/youtube";
+import { youtubeEmbedURL, youtubeThumbnail } from "@/lib/youtube";
 import RatingPopup from "@/components/RatingPopup";
 import CommentsSection from "@/components/CommentsSection";
 import GroupAddMenu from "@/components/GroupAddMenu";
@@ -248,6 +248,7 @@ function kindClass(kind: TrackKind): string {
 interface RailItem {
   id: string;
   title: string;
+  youtube_url: string;
   kind: TrackKind;
   sequence_number: number | null;
   avg_rating: number;
@@ -286,19 +287,28 @@ function Rail({
               href={`/openings/${item.id}`}
               className={`rail-card${isCurrent ? " current-card" : ""}`}
             >
-              <div className={`rail-thumb p-${(i % 6) + 1}${isCurrent ? " current" : ""}`}>
-                <span className={`rail-seq ${kindClass(item.kind)}${isCurrent ? " current" : ""}`}>
-                  {kindLabel(item.kind, item.sequence_number)}
-                </span>
-                {isCurrent && <span className="rail-now">now playing</span>}
-                {!isCurrent && (
-                  <span className="rail-play">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  </span>
-                )}
-              </div>
+              {(() => {
+                const thumb = youtubeThumbnail(item.youtube_url);
+                return (
+                  <div className={`rail-thumb p-${(i % 6) + 1}${isCurrent ? " current" : ""}`}>
+                    {thumb && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumb} alt="" className="rail-thumb-img" />
+                    )}
+                    <span className={`rail-seq ${kindClass(item.kind)}${isCurrent ? " current" : ""}`}>
+                      {kindLabel(item.kind, item.sequence_number)}
+                    </span>
+                    {isCurrent && <span className="rail-now">now playing</span>}
+                    {!isCurrent && (
+                      <span className="rail-play">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="rail-meta">
                 <div className="rail-title">{item.title}</div>
                 <div className="rail-sub">{item.subtitle}</div>
@@ -344,6 +354,7 @@ export default function OpeningDetail({
   const animeRailItems = animeOpenings.map((ao) => ({
     id: ao.id,
     title: ao.title,
+    youtube_url: ao.youtube_url,
     kind: ao.kind,
     sequence_number: ao.sequence_number,
     avg_rating: ao.avg_rating,
@@ -354,6 +365,7 @@ export default function OpeningDetail({
   const singerRailItems = singerOpenings.map((so) => ({
     id: so.id,
     title: so.title,
+    youtube_url: so.youtube_url,
     kind: so.kind,
     sequence_number: so.sequence_number,
     avg_rating: so.avg_rating,
