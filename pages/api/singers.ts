@@ -5,19 +5,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const b = req.body ?? {};
-  const rawKind = typeof b.kind === "string" ? b.kind : "opening";
-  const kind = ["opening", "ending", "ost"].includes(rawKind) ? rawKind : "opening";
-
-  const upstream = await fetch(backendUrl("/openings"), {
+  const upstream = await fetch(backendUrl("/singers"), {
     method: "POST",
     headers: buildCsrfHeaders(req.headers.cookie, { "Content-Type": "application/json" }),
     body: JSON.stringify({
-      title: b.title ?? "",
-      youtube_url: b.youtube_url ?? "",
-      kind,
-      anime_id: b.anime_id ?? "",
-      singer_id: b.singer_id ?? "",
-      sequence_number: b.sequence_number ? Number(b.sequence_number) : undefined,
+      name: b.name ?? "",
+      name_native: b.name_native ?? "",
+      type: b.type ?? "",
+      active_since: b.active_since ? Number(b.active_since) : undefined,
+      bio: b.bio ?? "",
+      reference_url: b.reference_url ?? "",
+      cover_image_key: b.cover_image_key ?? "",
       notes_for_moderator: b.notes_for_moderator ?? "",
     }),
   });
@@ -32,5 +30,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const payload = await upstream.json();
-  return res.status(201).json({ ...payload.data, _kind: kind });
+  return res.status(201).json(payload.data);
 }
