@@ -76,6 +76,8 @@ export interface Opening {
   pattern?: 1 | 2 | 3 | 4 | 5 | 6;
   // Optional duration shown over the thumbnail (e.g. "1:30").
   duration?: string;
+  // Admin-only, included when viewer is admin.
+  notes_for_moderator?: string | null;
 }
 
 export interface OpeningPage {

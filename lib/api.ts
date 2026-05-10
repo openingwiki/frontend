@@ -285,6 +285,24 @@ export function removeOpeningFromGroup(
 
 // Admin-only soft-delete of an opening. Backend expects an admin session
 // (PATCH check inside the handler) and returns 204 No Content.
+export interface AdminUpdateOpeningInput {
+  title: string;
+  youtube_url: string;
+  kind: TrackKind;
+  anime_id: string;
+  singer_id: string;
+  notes_for_moderator?: string | null;
+}
+
+export function adminUpdateOpening(openingId: string, input: AdminUpdateOpeningInput, cookie?: string): Promise<void> {
+  return apiFetchData<void>(`/admin/openings/${encodeURIComponent(openingId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cookie,
+  });
+}
+
 export function adminDeleteOpening(openingId: string, cookie?: string): Promise<void> {
   return apiFetchData<void>(`/admin/openings/${encodeURIComponent(openingId)}`, {
     method: "DELETE",
