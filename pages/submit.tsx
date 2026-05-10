@@ -1,4 +1,5 @@
 import type { GetServerSideProps } from "next";
+import Link from "next/link";
 import { useState, useCallback } from "react";
 import { useRouter } from "next/router";
 import Layout from "@/components/Layout";
@@ -21,27 +22,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 
 type Tab = "opening" | "anime" | "singer";
 
-const KIND_OPTIONS: { value: TrackKind; label: string; sub: string }[] = [
-  { value: "opening", label: "Opening", sub: "OP · INTRO" },
-  { value: "ending",  label: "Ending",  sub: "ED · OUTRO" },
-  { value: "ost",     label: "OST",     sub: "OST · TRACK" },
-];
-
-const ANIME_FORMATS: { value: AnimeFormat; label: string }[] = [
-  { value: "tv",      label: "TV" },
-  { value: "film",    label: "Film" },
-  { value: "ova_ona", label: "OVA / ONA" },
-  { value: "special", label: "Special" },
-];
-
-const SINGER_TYPES: { value: SingerType; label: string }[] = [
-  { value: "solo",              label: "Solo artist" },
-  { value: "band",              label: "Band" },
-  { value: "idol_group",        label: "Idol group" },
-  { value: "vocaloid_producer", label: "Vocaloid / producer" },
-  { value: "composer",          label: "Composer" },
-  { value: "other",             label: "Other" },
-];
+// ---------------------------------------------------------------------------
+// Fetch helpers (called client-side)
+// ---------------------------------------------------------------------------
 
 async function fetchAnimeItems(q: string): Promise<AutocompleteItem[]> {
   const res = await fetch(`/api/anime/search?q=${encodeURIComponent(q)}`);
@@ -51,7 +34,7 @@ async function fetchAnimeItems(q: string): Promise<AutocompleteItem[]> {
   return items.map((a: any) => ({
     id: a.id,
     label: a.name,
-    sublabel: a.year ? `${a.format?.toUpperCase() ?? ""} · ${a.year}` : undefined,
+    sublabel: a.year ? `${a.year} · ${(a.format ?? "").toUpperCase().replace("_", " ")}` : undefined,
   }));
 }
 
@@ -63,21 +46,88 @@ async function fetchSingerItems(q: string): Promise<AutocompleteItem[]> {
   return items.map((s: any) => ({
     id: s.id,
     label: s.name,
-    sublabel: s.type?.replace(/_/g, " ") ?? undefined,
+    sublabel: (s.type ?? "").replace(/_/g, " "),
   }));
 }
 
 // ---------------------------------------------------------------------------
-// Opening tab
+// Sidebar
 // ---------------------------------------------------------------------------
 
-function OpeningForm() {
+function Sidebar({ tab }: { tab: Tab }) {
+  const tips: Record<Tab, React.ReactNode[]> = {
+    opening: [
+      <><strong>Official upload preferred</strong> — Crunchyroll, the studio, or the artist&apos;s channel.</>,
+      <>Title in romaji or English — no season abbreviations (OP1, OP2 etc.).</>,
+      <>If the anime or singer isn&apos;t in the database yet, submit it first from the other tabs.</>,
+    ],
+    anime: [
+      <>Use the <strong>AniList link</strong> as the reference — it&apos;s the easiest for mods to verify.</>,
+      <>Romaji title is the canonical key — spell it consistently with AniList.</>,
+      <>Sequels and side stories should be separate entries if they have their own OPs.</>,
+    ],
+    singer: [
+      <>Use the canonical name — the one on their official Spotify or Wikipedia page.</>,
+      <>Vocaloid producers and composers count — include them if they made the track.</>,
+      <>One entry per act; solo albums by a band member get their own singer entry.</>,
+    ],
+  };
+
+  return (
+    <aside className="sub-side">
+      <div className="sub-panel">
+        <div className="sub-panel-head">What happens next</div>
+        <div className="sub-panel-body">
+          <div className="sub-timeline">
+            <div className="sub-tl-step now">
+              <div className="sub-tl-dot">1</div>
+              <div className="sub-tl-text">
+                <div className="sub-tl-title">You submit</div>
+                <div className="sub-tl-sub">Lands in the moderation queue. You can edit until a mod picks it up.</div>
+              </div>
+            </div>
+            <div className="sub-tl-step">
+              <div className="sub-tl-dot">2</div>
+              <div className="sub-tl-text">
+                <div className="sub-tl-title">A mod reviews</div>
+                <div className="sub-tl-sub">Checks the source, attribution, and dedup. Usually under 24h.</div>
+              </div>
+            </div>
+            <div className="sub-tl-step">
+              <div className="sub-tl-dot">3</div>
+              <div className="sub-tl-text">
+                <div className="sub-tl-title">It goes live</div>
+                <div className="sub-tl-sub">Shows up as the contributor on the entry.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="sub-panel">
+        <div className="sub-panel-head">Tips</div>
+        <div className="sub-panel-body sub-tips">
+          <ul>
+            {tips[tab].map((tip, i) => <li key={i}>{tip}</li>)}
+          </ul>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Opening form
+// ---------------------------------------------------------------------------
+
+function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
   const router = useRouter();
   const [kind, setKind] = useState<TrackKind>("opening");
   const [title, setTitle] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [selectedAnime, setSelectedAnime] = useState<AutocompleteItem | null>(null);
   const [selectedSinger, setSelectedSinger] = useState<AutocompleteItem | null>(null);
+  const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -107,6 +157,7 @@ function OpeningForm() {
         kind,
         anime_id: selectedAnime!.id,
         singer_id: selectedSinger!.id,
+        notes_for_moderator: notes.trim(),
       }),
     });
 
@@ -122,102 +173,128 @@ function OpeningForm() {
     router.push(`/?kind=${kind}`);
   };
 
+  const TYPE_OPTIONS = [
+    { value: "opening" as TrackKind, tag: "OP", cls: "op", name: "Opening", desc: "Intro sequence · ~90 sec · plays at the start of every episode" },
+    { value: "ending"  as TrackKind, tag: "ED", cls: "ed", name: "Ending",  desc: "Outro sequence · ~90 sec · plays at the end of every episode" },
+    { value: "ost"     as TrackKind, tag: "OST", cls: "ost", name: "OST / insert", desc: "Score, insert song, or character song · any length" },
+  ];
+
   const titleLabel = kind === "ost" ? "Track title" : kind === "ending" ? "Ending title" : "Opening title";
 
   return (
     <form onSubmit={handleSubmit}>
-      <div>
-        <label>Type</label>
-        <div className="kind-picker">
-          {KIND_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              className={`kind-btn${kind === opt.value ? " on" : ""}`}
-              onClick={() => setKind(opt.value)}
-            >
-              <span className="kind-btn-label">{opt.label}</span>
-              <span className="kind-btn-sub">{opt.sub}</span>
-            </button>
-          ))}
+      <div className="sub-form-card">
+        <div className="sub-form-head">
+          <h2>Submit an <em>{kind === "ost" ? "OST" : kind}</em>.</h2>
+          <p>OP, ED, or OST · We&apos;ll attach it to its anime + singer</p>
         </div>
-      </div>
+        <div className="sub-form-body">
 
-      <div>
-        <label htmlFor="op-title">{titleLabel}</label>
-        <input
-          id="op-title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={`e.g. Silhouette`}
-        />
-        {fieldErrors.title && <p className="field-error">{fieldErrors.title}</p>}
-      </div>
+          <div className="sub-section"><span className="sub-step">01</span> What kind of track?</div>
+          <div className="sub-type-grid">
+            {TYPE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                className={`sub-type-pick ${opt.cls}${kind === opt.value ? " on" : ""}`}
+                onClick={() => setKind(opt.value)}
+              >
+                <div className="tp-row">
+                  <span className="tp-tag">{opt.tag}</span>
+                  <span className="tp-radio" />
+                </div>
+                <div className="tp-name">{opt.name}</div>
+                <div className="tp-desc">{opt.desc}</div>
+              </button>
+            ))}
+          </div>
 
-      <div>
-        <label htmlFor="op-yt">YouTube URL</label>
-        <input
-          id="op-yt"
-          value={youtubeUrl}
-          onChange={(e) => setYoutubeUrl(e.target.value)}
-          placeholder="https://www.youtube.com/watch?v=..."
-        />
-        {fieldErrors.youtube_url && <p className="field-error">{fieldErrors.youtube_url}</p>}
-      </div>
+          <div className="sub-section"><span className="sub-step">02</span> Source video</div>
+          <div className="sub-row">
+            <label>YouTube link <span className="req">*</span></label>
+            <input type="url" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://youtube.com/watch?v=…" />
+            <span className="hint">Official upload preferred — Crunchyroll, the studio, the artist&apos;s channel.</span>
+            {fieldErrors.youtube_url && <span className="ferr">{fieldErrors.youtube_url}</span>}
+          </div>
+          <div className="sub-row">
+            <label>{titleLabel} <span className="req">*</span></label>
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Song name (romaji or english) — e.g. Mukanjyo" />
+            {fieldErrors.title && <span className="ferr">{fieldErrors.title}</span>}
+          </div>
 
-      <div>
-        <label>Anime</label>
-        <Autocomplete
-          placeholder="Search anime…"
-          fetchItems={fetchAnime}
-          selected={selectedAnime}
-          onSelect={setSelectedAnime}
-        />
-        {fieldErrors.anime_id && <p className="field-error">{fieldErrors.anime_id}</p>}
-        <p className="field-hint">Can&apos;t find it? Submit the anime first from the Anime tab.</p>
-      </div>
+          <div className="sub-section"><span className="sub-step">03</span> Anime &amp; singer</div>
+          <div className="sub-grid-2">
+            <div className="sub-row">
+              <label>Anime <span className="req">*</span></label>
+              <Autocomplete
+                placeholder="Search existing…"
+                fetchItems={fetchAnime}
+                selected={selectedAnime}
+                onSelect={setSelectedAnime}
+                onCreateNew={() => onSwitchTab("anime")}
+                createNewLabel="Add new anime…"
+              />
+              {fieldErrors.anime_id && <span className="ferr">{fieldErrors.anime_id}</span>}
+            </div>
+            <div className="sub-row">
+              <label>Singer <span className="req">*</span></label>
+              <Autocomplete
+                placeholder="Search existing…"
+                fetchItems={fetchSinger}
+                selected={selectedSinger}
+                onSelect={setSelectedSinger}
+                onCreateNew={() => onSwitchTab("singer")}
+                createNewLabel="Add new singer…"
+              />
+              {fieldErrors.singer_id && <span className="ferr">{fieldErrors.singer_id}</span>}
+            </div>
+          </div>
 
-      <div>
-        <label>Singer / Composer</label>
-        <Autocomplete
-          placeholder="Search singer or composer…"
-          fetchItems={fetchSinger}
-          selected={selectedSinger}
-          onSelect={setSelectedSinger}
-        />
-        {fieldErrors.singer_id && <p className="field-error">{fieldErrors.singer_id}</p>}
-        <p className="field-hint">Can&apos;t find them? Submit the singer first from the Singer tab.</p>
-      </div>
+          <div className="sub-section"><span className="sub-step">04</span> Anything else?</div>
+          <div className="sub-row">
+            <label>Notes for moderator <span className="opt">(optional)</span></label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Sources, alternate titles, why this video over another upload…" />
+          </div>
 
-      {error && <p className="submit-error">{error}</p>}
-
-      <div className="actions">
-        <button type="submit" className="btn primary" disabled={submitting}>
-          {submitting ? "Submitting…" : "Submit for review"}
-        </button>
+        </div>
+        <div className="sub-form-foot">
+          <span className="sub-foot-note">⌘ + Enter to submit</span>
+          <div className="sub-foot-actions">
+            {error && <span className="ferr">{error}</span>}
+            <button type="submit" className="btn primary lg" disabled={submitting}>
+              {submitting ? "Submitting…" : "Submit for review →"}
+            </button>
+          </div>
+        </div>
       </div>
     </form>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Anime tab
+// Anime form
 // ---------------------------------------------------------------------------
 
-function AnimeForm() {
-  const router = useRouter();
-  const [fields, setFields] = useState({
+function AnimePane() {
+  const FORMATS: { value: AnimeFormat; label: string }[] = [
+    { value: "tv",      label: "TV series" },
+    { value: "film",    label: "Film" },
+    { value: "ova_ona", label: "OVA / ONA" },
+    { value: "special", label: "Special" },
+  ];
+
+  const [f, setF] = useState({
     title_romaji: "", title_english: "", title_native: "",
-    year: "", format: "tv" as AnimeFormat,
-    episodes: "", studio: "", reference_url: "", notes_for_moderator: "",
+    year: "", format: "tv" as AnimeFormat, episodes: "",
+    studio: "", reference_url: "", notes_for_moderator: "",
   });
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setF((prev) => ({ ...prev, [k]: e.target.value }));
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
-
-  const set = (k: keyof typeof fields) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setFields((f) => ({ ...f, [k]: e.target.value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,112 +305,135 @@ function AnimeForm() {
     const res = await fetch("/api/anime", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...fields,
-        year: Number(fields.year) || 0,
-        episodes: fields.episodes ? Number(fields.episodes) : undefined,
-      }),
+      body: JSON.stringify({ ...f, year: Number(f.year) || 0, episodes: f.episodes ? Number(f.episodes) : undefined }),
     });
 
     setSubmitting(false);
-
     if (!res.ok) {
       const payload = await res.json().catch(() => ({}));
       setError(payload.error ?? "Submission failed");
       if (payload.fields) setFieldErrors(payload.fields);
       return;
     }
-
     setSuccess(true);
   };
 
   if (success) {
     return (
-      <div className="submit-success">
-        <p>Anime submitted for review. Once approved it will appear in the anime picker.</p>
-        <button type="button" className="btn" onClick={() => { setSuccess(false); setFields({ title_romaji: "", title_english: "", title_native: "", year: "", format: "tv", episodes: "", studio: "", reference_url: "", notes_for_moderator: "" }); }}>
-          Submit another
-        </button>
+      <div className="sub-form-card">
+        <div className="sub-form-body" style={{ textAlign: "center", padding: "48px 26px" }}>
+          <p style={{ fontSize: 16, marginBottom: 20 }}>Anime submitted for review ✓</p>
+          <p className="hint" style={{ marginBottom: 24 }}>Once a mod approves it, it will appear in the anime picker on the Opening tab.</p>
+          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ title_romaji: "", title_english: "", title_native: "", year: "", format: "tv", episodes: "", studio: "", reference_url: "", notes_for_moderator: "" }); }}>
+            Submit another
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit}>
-      <div>
-        <label htmlFor="a-romaji">Romaji title <span className="req">*</span></label>
-        <input id="a-romaji" value={fields.title_romaji} onChange={set("title_romaji")} placeholder="e.g. Naruto Shippuden" />
-        {fieldErrors.title_romaji && <p className="field-error">{fieldErrors.title_romaji}</p>}
-      </div>
-      <div>
-        <label htmlFor="a-english">English title</label>
-        <input id="a-english" value={fields.title_english} onChange={set("title_english")} placeholder="e.g. Naruto: Shippuden" />
-      </div>
-      <div>
-        <label htmlFor="a-native">Native title</label>
-        <input id="a-native" value={fields.title_native} onChange={set("title_native")} placeholder="e.g. ナルト 疾風伝" />
-      </div>
-      <div className="form-row">
-        <div>
-          <label htmlFor="a-year">Year <span className="req">*</span></label>
-          <input id="a-year" type="number" value={fields.year} onChange={set("year")} placeholder="e.g. 2007" min={1900} max={2030} />
-          {fieldErrors.year && <p className="field-error">{fieldErrors.year}</p>}
+      <div className="sub-form-card">
+        <div className="sub-form-head">
+          <h2>Submit an <em>anime</em>.</h2>
+          <p>So OPs, EDs, and OSTs can be attached to a real series</p>
         </div>
-        <div>
-          <label htmlFor="a-episodes">Episodes</label>
-          <input id="a-episodes" type="number" value={fields.episodes} onChange={set("episodes")} placeholder="e.g. 500" min={1} />
+        <div className="sub-form-body">
+
+          <div className="sub-section"><span className="sub-step">01</span> Titles</div>
+          <div className="sub-row">
+            <label>Romaji title <span className="req">*</span></label>
+            <input type="text" value={f.title_romaji} onChange={set("title_romaji")} placeholder="Shingeki no Kyojin" />
+            <span className="hint">The latin-script transliteration. Used as the canonical key.</span>
+            {fieldErrors.title_romaji && <span className="ferr">{fieldErrors.title_romaji}</span>}
+          </div>
+          <div className="sub-grid-2">
+            <div className="sub-row">
+              <label>English title <span className="opt">(optional)</span></label>
+              <input type="text" value={f.title_english} onChange={set("title_english")} placeholder="Attack on Titan" />
+            </div>
+            <div className="sub-row">
+              <label>Native (日本語) <span className="opt">(optional)</span></label>
+              <input type="text" value={f.title_native} onChange={set("title_native")} placeholder="進撃の巨人" />
+            </div>
+          </div>
+
+          <div className="sub-section"><span className="sub-step">02</span> Production</div>
+          <div className="sub-grid-3">
+            <div className="sub-row">
+              <label>Year <span className="req">*</span></label>
+              <input type="text" inputMode="numeric" value={f.year} onChange={set("year")} placeholder="2013" />
+              {fieldErrors.year && <span className="ferr">{fieldErrors.year}</span>}
+            </div>
+            <div className="sub-row">
+              <label>Format</label>
+              <select value={f.format} onChange={set("format")}>
+                {FORMATS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+            </div>
+            <div className="sub-row">
+              <label>Episodes <span className="opt">(optional)</span></label>
+              <input type="text" inputMode="numeric" value={f.episodes} onChange={set("episodes")} placeholder="25" />
+            </div>
+          </div>
+          <div className="sub-row">
+            <label>Studio <span className="opt">(optional)</span></label>
+            <input type="text" value={f.studio} onChange={set("studio")} placeholder="Wit Studio · MAPPA" />
+          </div>
+
+          <div className="sub-section"><span className="sub-step">03</span> Verification</div>
+          <div className="sub-row">
+            <label>Reference link <span className="req">*</span></label>
+            <input type="url" value={f.reference_url} onChange={set("reference_url")} placeholder="https://anilist.co/anime/… or MyAnimeList / official site" />
+            <span className="hint">Helps the moderator verify the entry. AniList preferred.</span>
+            {fieldErrors.reference_url && <span className="ferr">{fieldErrors.reference_url}</span>}
+          </div>
+          <div className="sub-row">
+            <label>Notes for moderator <span className="opt">(optional)</span></label>
+            <textarea value={f.notes_for_moderator} onChange={set("notes_for_moderator")} rows={3} placeholder="Sequel/prequel relationships, alternate titles…" />
+          </div>
+
         </div>
-      </div>
-      <div>
-        <label>Format <span className="req">*</span></label>
-        <div className="kind-picker">
-          {ANIME_FORMATS.map((opt) => (
-            <button key={opt.value} type="button" className={`kind-btn${fields.format === opt.value ? " on" : ""}`} onClick={() => setFields((f) => ({ ...f, format: opt.value }))}>
-              <span className="kind-btn-label">{opt.label}</span>
+        <div className="sub-form-foot">
+          <span className="sub-foot-note">⌘ + Enter to submit</span>
+          <div className="sub-foot-actions">
+            {error && <span className="ferr">{error}</span>}
+            <button type="submit" className="btn primary lg" disabled={submitting}>
+              {submitting ? "Submitting…" : "Submit for review →"}
             </button>
-          ))}
+          </div>
         </div>
-        {fieldErrors.format && <p className="field-error">{fieldErrors.format}</p>}
-      </div>
-      <div>
-        <label htmlFor="a-studio">Studio</label>
-        <input id="a-studio" value={fields.studio} onChange={set("studio")} placeholder="e.g. Studio Pierrot" />
-      </div>
-      <div>
-        <label htmlFor="a-ref">Reference URL <span className="req">*</span></label>
-        <input id="a-ref" value={fields.reference_url} onChange={set("reference_url")} placeholder="https://anilist.co/anime/..." />
-        {fieldErrors.reference_url && <p className="field-error">{fieldErrors.reference_url}</p>}
-      </div>
-      <div>
-        <label htmlFor="a-notes">Notes for moderator</label>
-        <textarea id="a-notes" value={fields.notes_for_moderator} onChange={set("notes_for_moderator")} rows={3} placeholder="Anything that helps the reviewer" />
-      </div>
-      {error && <p className="submit-error">{error}</p>}
-      <div className="actions">
-        <button type="submit" className="btn primary" disabled={submitting}>
-          {submitting ? "Submitting…" : "Submit for review"}
-        </button>
       </div>
     </form>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Singer tab
+// Singer form
 // ---------------------------------------------------------------------------
 
-function SingerForm() {
-  const [fields, setFields] = useState({
+function SingerPane() {
+  const TYPES: { value: SingerType; label: string }[] = [
+    { value: "solo",              label: "Solo artist" },
+    { value: "band",              label: "Band" },
+    { value: "idol_group",        label: "Idol group" },
+    { value: "vocaloid_producer", label: "Vocaloid producer" },
+    { value: "composer",          label: "Composer" },
+    { value: "other",             label: "Other" },
+  ];
+
+  const [f, setF] = useState({
     name: "", name_native: "", type: "solo" as SingerType,
     active_since: "", bio: "", reference_url: "", notes_for_moderator: "",
   });
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+    setF((prev) => ({ ...prev, [k]: e.target.value }));
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
-
-  const set = (k: keyof typeof fields) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setFields((f) => ({ ...f, [k]: e.target.value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,79 +444,94 @@ function SingerForm() {
     const res = await fetch("/api/singers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...fields,
-        active_since: fields.active_since ? Number(fields.active_since) : undefined,
-      }),
+      body: JSON.stringify({ ...f, active_since: f.active_since ? Number(f.active_since) : undefined }),
     });
 
     setSubmitting(false);
-
     if (!res.ok) {
       const payload = await res.json().catch(() => ({}));
       setError(payload.error ?? "Submission failed");
       if (payload.fields) setFieldErrors(payload.fields);
       return;
     }
-
     setSuccess(true);
   };
 
   if (success) {
     return (
-      <div className="submit-success">
-        <p>Singer submitted for review. Once approved they will appear in the singer picker.</p>
-        <button type="button" className="btn" onClick={() => { setSuccess(false); setFields({ name: "", name_native: "", type: "solo", active_since: "", bio: "", reference_url: "", notes_for_moderator: "" }); }}>
-          Submit another
-        </button>
+      <div className="sub-form-card">
+        <div className="sub-form-body" style={{ textAlign: "center", padding: "48px 26px" }}>
+          <p style={{ fontSize: 16, marginBottom: 20 }}>Singer submitted for review ✓</p>
+          <p className="hint" style={{ marginBottom: 24 }}>Once approved, they will appear in the singer picker on the Opening tab.</p>
+          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ name: "", name_native: "", type: "solo", active_since: "", bio: "", reference_url: "", notes_for_moderator: "" }); }}>
+            Submit another
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <form onSubmit={handleSubmit}>
-      <div>
-        <label htmlFor="s-name">Name <span className="req">*</span></label>
-        <input id="s-name" value={fields.name} onChange={set("name")} placeholder="e.g. FLOW" />
-        {fieldErrors.name && <p className="field-error">{fieldErrors.name}</p>}
-      </div>
-      <div>
-        <label htmlFor="s-native">Native name</label>
-        <input id="s-native" value={fields.name_native} onChange={set("name_native")} placeholder="e.g. フロウ" />
-      </div>
-      <div>
-        <label>Type <span className="req">*</span></label>
-        <div className="kind-picker" style={{ flexWrap: "wrap" }}>
-          {SINGER_TYPES.map((opt) => (
-            <button key={opt.value} type="button" className={`kind-btn${fields.type === opt.value ? " on" : ""}`} onClick={() => setFields((f) => ({ ...f, type: opt.value }))}>
-              <span className="kind-btn-label">{opt.label}</span>
-            </button>
-          ))}
+      <div className="sub-form-card">
+        <div className="sub-form-head">
+          <h2>Submit a <em>singer</em>.</h2>
+          <p>Solo artist, band, group, or producer whose work appears in anime</p>
         </div>
-        {fieldErrors.type && <p className="field-error">{fieldErrors.type}</p>}
-      </div>
-      <div>
-        <label htmlFor="s-since">Active since (year)</label>
-        <input id="s-since" type="number" value={fields.active_since} onChange={set("active_since")} placeholder="e.g. 2003" min={1900} max={2030} />
-      </div>
-      <div>
-        <label htmlFor="s-bio">Bio</label>
-        <textarea id="s-bio" value={fields.bio} onChange={set("bio")} rows={3} placeholder="Short description" />
-      </div>
-      <div>
-        <label htmlFor="s-ref">Reference URL <span className="req">*</span></label>
-        <input id="s-ref" value={fields.reference_url} onChange={set("reference_url")} placeholder="https://www.last.fm/music/..." />
-        {fieldErrors.reference_url && <p className="field-error">{fieldErrors.reference_url}</p>}
-      </div>
-      <div>
-        <label htmlFor="s-notes">Notes for moderator</label>
-        <textarea id="s-notes" value={fields.notes_for_moderator} onChange={set("notes_for_moderator")} rows={3} placeholder="Anything that helps the reviewer" />
-      </div>
-      {error && <p className="submit-error">{error}</p>}
-      <div className="actions">
-        <button type="submit" className="btn primary" disabled={submitting}>
-          {submitting ? "Submitting…" : "Submit for review"}
-        </button>
+        <div className="sub-form-body">
+
+          <div className="sub-section"><span className="sub-step">01</span> Identity</div>
+          <div className="sub-row">
+            <label>Name <span className="req">*</span></label>
+            <input type="text" value={f.name} onChange={set("name")} placeholder="YOASOBI" />
+            <span className="hint">Romaji or English — whichever is the canonical form.</span>
+            {fieldErrors.name && <span className="ferr">{fieldErrors.name}</span>}
+          </div>
+          <div className="sub-row">
+            <label>Native (日本語) <span className="opt">(optional)</span></label>
+            <input type="text" value={f.name_native} onChange={set("name_native")} placeholder="ヨアソビ" />
+          </div>
+
+          <div className="sub-section"><span className="sub-step">02</span> About</div>
+          <div className="sub-grid-2">
+            <div className="sub-row">
+              <label>Type <span className="req">*</span></label>
+              <select value={f.type} onChange={set("type")}>
+                {TYPES.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+              {fieldErrors.type && <span className="ferr">{fieldErrors.type}</span>}
+            </div>
+            <div className="sub-row">
+              <label>Active since <span className="opt">(optional)</span></label>
+              <input type="text" inputMode="numeric" value={f.active_since} onChange={set("active_since")} placeholder="2019" />
+            </div>
+          </div>
+          <div className="sub-row">
+            <label>Short bio <span className="opt">(optional)</span></label>
+            <textarea value={f.bio} onChange={set("bio")} rows={3} placeholder="One or two sentences. Genres, notable works, anything that helps recognize them." />
+          </div>
+
+          <div className="sub-section"><span className="sub-step">03</span> Verification</div>
+          <div className="sub-row">
+            <label>Reference link <span className="req">*</span></label>
+            <input type="url" value={f.reference_url} onChange={set("reference_url")} placeholder="Official site, Spotify, Wikipedia…" />
+            {fieldErrors.reference_url && <span className="ferr">{fieldErrors.reference_url}</span>}
+          </div>
+          <div className="sub-row">
+            <label>Notes for moderator <span className="opt">(optional)</span></label>
+            <textarea value={f.notes_for_moderator} onChange={set("notes_for_moderator")} rows={3} placeholder="Anything that helps the reviewer" />
+          </div>
+
+        </div>
+        <div className="sub-form-foot">
+          <span className="sub-foot-note">⌘ + Enter to submit</span>
+          <div className="sub-foot-actions">
+            {error && <span className="ferr">{error}</span>}
+            <button type="submit" className="btn primary lg" disabled={submitting}>
+              {submitting ? "Submitting…" : "Submit for review →"}
+            </button>
+          </div>
+        </div>
       </div>
     </form>
   );
@@ -426,43 +541,67 @@ function SingerForm() {
 // Page
 // ---------------------------------------------------------------------------
 
-const TAB_LABELS: Record<Tab, string> = {
-  opening: "Opening / Ending / OST",
-  anime: "Anime",
-  singer: "Singer",
-};
-
-const TAB_TITLES: Record<Tab, string> = {
-  opening: "Submit a track",
-  anime: "Submit an anime",
-  singer: "Submit a singer",
-};
+const TABS: { id: Tab; icon: React.ReactNode; label: string; sub: string }[] = [
+  {
+    id: "opening",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>,
+    label: "An opening",
+    sub: "OP, ED, or OST · 30 sec",
+  },
+  {
+    id: "anime",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>,
+    label: "An anime",
+    sub: "New series · for OPs to attach to",
+  },
+  {
+    id: "singer",
+    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>,
+    label: "A singer",
+    sub: "Solo, band, or group · vocaloid",
+  },
+];
 
 export default function SubmitPage({ user, modQueueCount }: Props) {
   const [tab, setTab] = useState<Tab>("opening");
 
   return (
-    <Layout user={user} modQueueCount={modQueueCount} title={TAB_TITLES[tab]}>
-      <div className="formpage">
-        <h1>{TAB_TITLES[tab]}</h1>
-        <p>Goes to the moderation queue. Mods/admins are auto-approved.</p>
+    <Layout user={user} modQueueCount={modQueueCount} title="Submit · Opening Wiki">
+      <div className="wrap">
+        <div className="sub-crumb">
+          <Link href="/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+            Back to catalogue
+          </Link>
+        </div>
 
-        <div className="submit-tabs">
-          {(["opening", "anime", "singer"] as Tab[]).map((t) => (
+        <div className="sub-head">
+          <h1>Submit something <em>new</em>.</h1>
+          <p>Anyone can propose entries · Mods review within 24h · You&apos;ll get a notification when it&apos;s live</p>
+        </div>
+
+        <div className="sub-tabs">
+          {TABS.map((t) => (
             <button
-              key={t}
+              key={t.id}
               type="button"
-              className={`submit-tab${tab === t ? " on" : ""}`}
-              onClick={() => setTab(t)}
+              className={`sub-tab${tab === t.id ? " on" : ""}`}
+              onClick={() => setTab(t.id)}
             >
-              {TAB_LABELS[t]}
+              <span className="st-label">{t.icon}{t.label}</span>
+              <span className="st-sub">{t.sub}</span>
             </button>
           ))}
         </div>
 
-        {tab === "opening" && <OpeningForm />}
-        {tab === "anime" && <AnimeForm />}
-        {tab === "singer" && <SingerForm />}
+        <div className="sub-page-grid">
+          <div>
+            {tab === "opening" && <OpeningPane onSwitchTab={setTab} />}
+            {tab === "anime"   && <AnimePane />}
+            {tab === "singer"  && <SingerPane />}
+          </div>
+          <Sidebar tab={tab} />
+        </div>
       </div>
     </Layout>
   );
