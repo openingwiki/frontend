@@ -34,6 +34,8 @@ async function fetchAnimeItems(q: string): Promise<AutocompleteItem[]> {
   return items.map((a: any) => ({
     id: a.id,
     label: a.name,
+    coverUrl: a.cover_image_url ?? null,
+    iconShape: "square" as const,
     sublabel: a.year ? `${a.year} · ${(a.format ?? "").toUpperCase().replace("_", " ")}` : undefined,
   }));
 }
@@ -46,6 +48,8 @@ async function fetchSingerItems(q: string): Promise<AutocompleteItem[]> {
   return items.map((s: any) => ({
     id: s.id,
     label: s.name,
+    coverUrl: s.cover_image_url ?? null,
+    iconShape: "circle" as const,
     sublabel: (s.type ?? "").replace(/_/g, " "),
   }));
 }
@@ -287,7 +291,6 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
       <div className="sub-form-card">
         <div className="sub-form-head">
           <h2>Submit an <em>{kind === "ost" ? "OST" : kind}</em>.</h2>
-          <p>OP, ED, or OST · We&apos;ll attach it to its anime + singer</p>
         </div>
         <div className="sub-form-body">
 
@@ -314,7 +317,6 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
           <div className="sub-row">
             <label>YouTube link <span className="req">*</span></label>
             <input type="url" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="https://youtube.com/watch?v=…" />
-            <span className="hint">Official upload preferred — Crunchyroll, the studio, the artist&apos;s channel.</span>
             {fieldErrors.youtube_url && <span className="ferr">{fieldErrors.youtube_url}</span>}
           </div>
           <div className="sub-row">
@@ -439,7 +441,6 @@ function AnimePane() {
       <div className="sub-form-card">
         <div className="sub-form-head">
           <h2>Submit an <em>anime</em>.</h2>
-          <p>So OPs, EDs, and OSTs can be attached to a real series</p>
         </div>
         <div className="sub-form-body">
 
@@ -586,7 +587,6 @@ function SingerPane() {
       <div className="sub-form-card">
         <div className="sub-form-head">
           <h2>Submit a <em>singer</em>.</h2>
-          <p>Solo artist, band, group, or producer whose work appears in anime</p>
         </div>
         <div className="sub-form-body">
 
@@ -658,24 +658,21 @@ function SingerPane() {
 // Page
 // ---------------------------------------------------------------------------
 
-const TABS: { id: Tab; icon: React.ReactNode; label: string; sub: string }[] = [
+const TABS: { id: Tab; icon: React.ReactNode; label: string }[] = [
   {
     id: "opening",
     icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>,
     label: "An opening",
-    sub: "OP, ED, or OST · 30 sec",
   },
   {
     id: "anime",
     icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>,
     label: "An anime",
-    sub: "New series · for OPs to attach to",
   },
   {
     id: "singer",
     icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>,
     label: "A singer",
-    sub: "Solo, band, or group · vocaloid",
   },
 ];
 
@@ -706,7 +703,6 @@ export default function SubmitPage({ user, modQueueCount }: Props) {
               onClick={() => setTab(t.id)}
             >
               <span className="st-label">{t.icon}{t.label}</span>
-              <span className="st-sub">{t.sub}</span>
             </button>
           ))}
         </div>

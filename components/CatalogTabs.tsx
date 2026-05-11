@@ -4,13 +4,12 @@ import type { TrackKind } from "@/lib/types";
 interface Tab {
   kind: TrackKind;
   label: string;
-  subtitle: string;
 }
 
 const TABS: Tab[] = [
-  { kind: "opening", label: "Openings", subtitle: "OP · INTRO · ~90s" },
-  { kind: "ending",  label: "Endings",  subtitle: "ED · OUTRO · ~90s" },
-  { kind: "ost",     label: "OSTs",     subtitle: "OST · TRACK" },
+  { kind: "opening", label: "Openings" },
+  { kind: "ending",  label: "Endings" },
+  { kind: "ost",     label: "OSTs" },
 ];
 
 interface Props {
@@ -46,7 +45,6 @@ export default function CatalogTabs({ activeKind, counts, q, sort }: Props) {
               {tab.label}
               <span className="cat-tab-count">{counts[tab.kind].toLocaleString()}</span>
             </span>
-            <span className="cat-tab-sub">{tab.subtitle}</span>
           </Link>
         );
       })}

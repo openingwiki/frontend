@@ -5,6 +5,7 @@ import Layout from "@/components/Layout";
 import LocalSortDropdown from "@/components/LocalSortDropdown";
 import { getSinger } from "@/lib/api";
 import { loadSession } from "@/lib/session";
+import { youtubeThumbnail } from "@/lib/youtube";
 import type { SingerDetail, SingerOpening, TrackKind, User } from "@/lib/types";
 
 interface Props {
@@ -75,7 +76,7 @@ function sortOpenings(items: SingerOpening[], sort: SortKey): SingerOpening[] {
 
 export default function SingerPage({ user, modQueueCount, singer }: Props) {
   const [filter, setFilter] = useState<FilterTab>("all");
-  const [sort, setSort] = useState<SortKey>("sequence");
+  const [sort, setSort] = useState<SortKey>("top");
 
   const ops  = singer.openings.filter((o) => o.kind === "opening");
   const eds  = singer.openings.filter((o) => o.kind === "ending");
@@ -202,39 +203,44 @@ export default function SingerPage({ user, modQueueCount, singer }: Props) {
         {visible.length === 0 ? (
           <div className="empty-state">No entries yet.</div>
         ) : (
-          <div className="singer-entries">
-            {visible.map((op, i) => (
-              <Link key={op.id} href={`/openings/${op.id}`} className="singer-entry">
-                <div className={`singer-e-thumb p-${(i % 6) + 1}`}>
-                  <div className="singer-e-play">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
+          <div className="cat">
+            {visible.map((op, i) => {
+              const thumb = youtubeThumbnail(op.youtube_url);
+              return (
+                <article key={op.id} className="op-card">
+                  <Link href={`/openings/${op.id}`} className={thumb ? "op-thumb" : `op-thumb p-${(i % 6) + 1}`}>
+                    {thumb && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumb} alt="" className="op-thumb-img" loading="lazy" />
+                    )}
+                    <span className={`op-seq ${kindClass(op.kind)}`}>{kindLabel(op)}</span>
+                    <span className="op-play">
+                      <div>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </div>
+                    </span>
+                  </Link>
+                  <div className="op-info">
+                    <div className="op-main">
+                      <h3 className="op-title">
+                        <Link href={`/openings/${op.id}`}>{op.title}</Link>
+                      </h3>
+                      <div className="op-meta">
+                        <Link href={`/anime/${op.anime.id}`} className="op-meta-link">{op.anime.name}</Link>
+                      </div>
+                    </div>
+                    {op.rating_count > 0 && (
+                      <div className="op-score">
+                        <div className="n">{op.avg_rating.toFixed(1)}<em>/10</em></div>
+                        <div className="ct">{op.rating_count}</div>
+                      </div>
+                    )}
                   </div>
-                </div>
-                <div className="singer-e-meta">
-                  <div className="singer-e-row">
-                    <span className={`e-tag ${kindClass(op.kind)}`}>{kindLabel(op)}</span>
-                    <span className="singer-e-title">{op.title}</span>
-                  </div>
-                  <div className="singer-e-sub">
-                    <Link
-                      href={`/anime/${op.anime.id}`}
-                      className="singer-e-anime"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {op.anime.name}
-                    </Link>
-                  </div>
-                </div>
-                {op.rating_count > 0 && (
-                  <div className="singer-e-score">
-                    <div className="n">{op.avg_rating.toFixed(1)}<em>/10</em></div>
-                    <div className="ct">{op.rating_count}</div>
-                  </div>
-                )}
-              </Link>
-            ))}
+                </article>
+              );
+            })}
           </div>
         )}
 

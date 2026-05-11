@@ -14,6 +14,8 @@
   --accent-ink: #0c0a14;
   --ok: #7dd38f;
   --warn: #e8b84a;
+  --danger: #ef6868;
+  --danger-ink: #1a0808;
   --serif: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --mono: "Geist Mono", ui-monospace, Menlo, monospace;
@@ -617,6 +619,19 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   width: 28px; height: 28px; border-radius: 4px;
   background-image: repeating-linear-gradient(45deg, #1a1628 0 6px, #241e36 6px 7px);
   border: 1px solid var(--line-2);
+  overflow: hidden; flex-shrink: 0;
+}
+.auto-row .ic.circle,
+.auto-row .ic.circle img,
+.auto-selected .auto-ic.circle,
+.auto-selected .auto-ic.circle img { border-radius: 50%; }
+.auto-row .ic img,
+.auto-selected .auto-ic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.auto-selected .auto-ic {
+  width: 28px; height: 28px; border-radius: 4px;
+  background-image: repeating-linear-gradient(45deg, #1a1628 0 6px, #241e36 6px 7px);
+  border: 1px solid var(--line-2);
+  overflow: hidden; flex-shrink: 0;
 }
 .a-name { font-size: 13px; line-height: 1.2; }
 .a-sub { font-family: var(--mono); font-size: 10px; color: var(--fg-3); margin-top: 2px; }
@@ -2250,14 +2265,19 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 }
 
 /* ── Opening Edit page ────────────────────────────────────────────────────── */
-.edit-rolebar {
-  background: var(--bg-2); border-bottom: 1px solid var(--line);
-  margin: 0 calc(-1 * var(--pad)); padding: 0 var(--pad);
-  display: flex; gap: 14px; align-items: center; height: 34px;
-  font-family: var(--mono); font-size: 11px; color: var(--fg-3);
+.edit-eyebrow {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  font-family: var(--mono); font-size: 11px;
 }
-.edit-rolebar a { color: var(--fg-2); transition: color .15s; }
-.edit-rolebar a:hover { color: var(--fg); }
+.edit-admin-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px; border-radius: 4px;
+  background: color-mix(in oklab, var(--warn) 18%, transparent);
+  color: var(--warn); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  border: 1px solid color-mix(in oklab, var(--warn) 40%, transparent);
+}
+.edit-eyebrow-link { color: var(--fg-3); transition: color .15s; }
+.edit-eyebrow-link:hover { color: var(--fg); }
 
 .edit-crumb {
   padding: 22px 0 14px; font-family: var(--mono); font-size: 12px;
@@ -2294,11 +2314,16 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 .edit-card-body { padding: 18px; }
 
 /* Preview strip */
-.edit-preview-strip { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: stretch; }
+.edit-preview-strip { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: start; }
 .edit-preview-thumb {
-  aspect-ratio: 16/9; border-radius: 6px;
+  width: 100%; aspect-ratio: 16/9; border-radius: 6px;
   border: 1px solid var(--line); overflow: hidden;
-  background: var(--bg-3); display: grid; place-items: center;
+  background: var(--bg-3); position: relative;
+}
+.edit-preview-thumb iframe,
+.edit-preview-thumb > span {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  display: grid; place-items: center;
 }
 .edit-preview-ph { font-family: var(--mono); font-size: 9px; color: var(--fg-3); letter-spacing: 0.14em; text-transform: uppercase; }
 .edit-preview-info { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
@@ -2365,11 +2390,14 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: center;
   padding: 10px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg-3);
 }
-.edit-relation.singer .edit-relation-ic { border-radius: 50%; }
+.edit-relation.singer .edit-relation-ic,
+.edit-relation.singer .edit-relation-ic img { border-radius: 50%; }
 .edit-relation-ic {
   width: 32px; height: 32px; border-radius: 5px; border: 1px solid var(--line-2);
   background-image: repeating-linear-gradient(135deg, #1a1628 0 8px, #221c33 8px 9px);
+  overflow: hidden; flex-shrink: 0;
 }
+.edit-relation-ic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .edit-relation-name { font-size: 14px; font-weight: 600; }
 .edit-relation-sub { font-family: var(--mono); font-size: 11px; color: var(--fg-3); margin-top: 2px; }
 .edit-change-btn {
@@ -2401,17 +2429,27 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 
 /* Danger zone */
 .edit-danger-zone {
-  border: 1px solid color-mix(in oklab, var(--danger) 25%, var(--line));
-  background: color-mix(in oklab, var(--danger) 4%, var(--bg-2));
+  border: 1px solid color-mix(in oklab, var(--danger) 55%, var(--line));
+  background: color-mix(in oklab, var(--danger) 8%, var(--bg-2));
   border-radius: 10px; overflow: hidden; margin-bottom: 18px;
 }
-.edit-danger-zone .edit-card-head { border-bottom: 1px solid color-mix(in oklab, var(--danger) 25%, var(--line)); }
+.edit-danger-zone .edit-card-head {
+  background: color-mix(in oklab, var(--danger) 14%, var(--bg-2));
+  border-bottom: 1px solid color-mix(in oklab, var(--danger) 45%, var(--line));
+  color: var(--danger);
+}
+.edit-danger-zone .edit-card-head .edit-card-step { color: var(--danger); }
 .edit-dz-row {
   display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center;
   padding: 14px 18px;
 }
-.edit-dz-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
-.edit-dz-sub { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
+.edit-dz-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; color: var(--danger); }
+.edit-dz-sub { font-family: var(--mono); font-size: 11px; color: color-mix(in oklab, var(--danger) 40%, var(--fg-2)); }
+.btn.danger {
+  background: var(--danger); color: var(--danger-ink);
+  border-color: var(--danger); font-weight: 500;
+}
+.btn.danger:hover { background: color-mix(in oklab, var(--danger) 88%, white); }
 
 /* Sidebar */
 .edit-side { position: sticky; top: 100px; align-self: start; }
@@ -2436,14 +2474,16 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 .edit-act-text { font-size: 13px; color: var(--fg-2); }
 .edit-act-time { font-family: var(--mono); font-size: 10px; color: var(--fg-4); margin-top: 2px; }
 
-/* Sticky save bar */
+/* Fixed save bar — spans full viewport, content centered to wrap */
 .edit-save-bar {
-  position: sticky; bottom: 0; z-index: 30;
-  margin: 0 calc(-1 * var(--pad));
-  padding: 14px var(--pad);
-  background: color-mix(in oklab, var(--bg-2) 96%, transparent);
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
+  background: color-mix(in oklab, var(--bg-2) 92%, transparent);
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--line-2);
+  box-shadow: 0 -8px 24px rgba(0,0,0,.25);
+}
+.edit-save-bar-inner {
+  padding-top: 14px; padding-bottom: 14px;
   display: flex; align-items: center; gap: 14px;
 }
 .edit-sb-status { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; }
@@ -2462,15 +2502,11 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin: 0;
 }
 .sec-h2 em { font-style: normal; color: var(--accent); }
+.sec-h2-link { text-decoration: none; border-bottom: 1px dashed color-mix(in oklab, var(--accent) 50%, transparent); transition: border-color .15s; }
+.sec-h2-link:hover { border-bottom-color: var(--accent); }
 .sec-count {
   font-family: var(--mono); font-size: 11px; color: var(--fg-4);
 }
-.all-link {
-  font-family: var(--mono); font-size: 11px; color: var(--fg-3);
-  transition: color .15s;
-}
-.all-link:hover { color: var(--accent); }
-
 .rail {
   display: grid;
   grid-auto-flow: column;

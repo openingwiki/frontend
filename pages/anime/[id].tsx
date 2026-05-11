@@ -5,6 +5,7 @@ import Layout from "@/components/Layout";
 import LocalSortDropdown from "@/components/LocalSortDropdown";
 import { getAnime } from "@/lib/api";
 import { loadSession } from "@/lib/session";
+import { youtubeThumbnail } from "@/lib/youtube";
 import type { AnimeDetail, AnimeOpening, TrackKind, User } from "@/lib/types";
 
 interface Props {
@@ -55,7 +56,7 @@ type FilterTab = "all" | TrackKind;
 
 export default function AnimePage({ user, modQueueCount, anime }: Props) {
   const [filter, setFilter] = useState<FilterTab>("all");
-  const [sort, setSort] = useState<"sequence" | "top" | "newest">("sequence");
+  const [sort, setSort] = useState<"sequence" | "top" | "newest">("top");
 
   const ops    = anime.openings.filter((o) => o.kind === "opening");
   const eds    = anime.openings.filter((o) => o.kind === "ending");
@@ -205,9 +206,15 @@ export default function AnimePage({ user, modQueueCount, anime }: Props) {
           <div className="empty-state">No entries yet.</div>
         ) : (
           <div className="cat">
-            {visible.map((op, i) => (
+            {visible.map((op, i) => {
+              const thumb = youtubeThumbnail(op.youtube_url);
+              return (
               <article key={op.id} className="op-card">
-                <Link href={`/openings/${op.id}`} className={`op-thumb p-${(i % 6) + 1}`}>
+                <Link href={`/openings/${op.id}`} className={thumb ? "op-thumb" : `op-thumb p-${(i % 6) + 1}`}>
+                  {thumb && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={thumb} alt="" className="op-thumb-img" loading="lazy" />
+                  )}
                   <span className={`op-seq ${kindClass(op.kind)}`}>{kindLabel(op)}</span>
                   <span className="op-play">
                     <div>
@@ -234,7 +241,8 @@ export default function AnimePage({ user, modQueueCount, anime }: Props) {
                   )}
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
