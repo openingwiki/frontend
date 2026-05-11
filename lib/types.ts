@@ -266,20 +266,38 @@ export interface ModerationItem {
   status: SubmissionStatus;
   submitted_at: string;
   submitted_by: ModerationSubmitter | null;
+  notes_for_moderator?: string | null;
+
   // Set when type === "opening"
   title?: string;
   youtube_url?: string;
   kind?: TrackKind;
+  sequence_number?: number | null;
+  anime?: { id: string; name: string };
+  singer?: { id: string; name: string };
+  // Flat aliases kept for backwards compatibility with older clients.
   anime_name?: string;
   singer_name?: string;
+
   // Set when type === "anime" | "singer"
   name?: string;
   cover_image_url?: string | null;
+  reference_url?: string;
+
   // Set when type === "anime"
+  title_romaji?: string;
+  title_english?: string | null;
+  title_native?: string | null;
   year?: number;
   format?: AnimeFormat;
+  episodes?: number | null;
+  studio?: string | null;
+
   // Set when type === "singer"
+  name_native?: string | null;
   singer_type?: SingerType;
+  active_since?: number | null;
+  bio?: string | null;
 }
 
 export interface ModerationQueuePage {

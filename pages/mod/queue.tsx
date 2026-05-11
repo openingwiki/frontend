@@ -119,6 +119,15 @@ const SINGER_TYPE_LABEL: Record<string, string> = {
   other: "Other",
 };
 
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="mod-card-row">
+      <span className="mod-card-row-k">{label}</span>
+      <span className="mod-card-row-v">{value}</span>
+    </div>
+  );
+}
+
 function ItemCard({ item }: { item: ModerationItem }) {
   const isOpening = item.type === "opening";
   const isAnime = item.type === "anime";
@@ -128,6 +137,11 @@ function ItemCard({ item }: { item: ModerationItem }) {
     : item.cover_image_url ?? null;
   const title = isOpening ? item.title : item.name;
   const thumbShape = isSinger ? "circle" : isAnime ? "poster" : "video";
+
+  const animeName = item.anime?.name ?? item.anime_name;
+  const animeId = item.anime?.id;
+  const singerName = item.singer?.name ?? item.singer_name;
+  const singerId = item.singer?.id;
 
   return (
     <li className="mod-card">
@@ -154,38 +168,88 @@ function ItemCard({ item }: { item: ModerationItem }) {
         </div>
 
         {isOpening && (
-          <p className="mod-card-meta">
-            <span className="mod-card-meta-k">Anime</span>
-            <span className="mod-card-meta-v">{item.anime_name ?? "—"}</span>
-            <span className="mod-card-sep">·</span>
-            <span className="mod-card-meta-k">Singer</span>
-            <span className="mod-card-meta-v">{item.singer_name ?? "—"}</span>
-          </p>
+          <div className="mod-card-rows">
+            <DetailRow
+              label="Anime"
+              value={animeId ? (
+                <Link href={`/anime/${animeId}`} target="_blank" rel="noreferrer">{animeName ?? "—"}</Link>
+              ) : (animeName ?? "—")}
+            />
+            <DetailRow
+              label="Singer"
+              value={singerId ? (
+                <Link href={`/singers/${singerId}`} target="_blank" rel="noreferrer">{singerName ?? "—"}</Link>
+              ) : (singerName ?? "—")}
+            />
+            <DetailRow label="Kind" value={(item.kind ?? "opening").toUpperCase()} />
+            {item.sequence_number != null && (
+              <DetailRow label="Sequence #" value={item.sequence_number} />
+            )}
+            {item.youtube_url && (
+              <DetailRow
+                label="YouTube"
+                value={
+                  <a href={item.youtube_url} target="_blank" rel="noopener noreferrer">
+                    ↗ Open video
+                  </a>
+                }
+              />
+            )}
+          </div>
         )}
 
         {isAnime && (
-          <p className="mod-card-meta">
-            {item.year != null && (
-              <>
-                <span className="mod-card-meta-k">Year</span>
-                <span className="mod-card-meta-v">{item.year}</span>
-              </>
-            )}
+          <div className="mod-card-rows">
+            {item.title_romaji && <DetailRow label="Romaji" value={item.title_romaji} />}
+            {item.title_english && <DetailRow label="English" value={item.title_english} />}
+            {item.title_native && <DetailRow label="Native" value={item.title_native} />}
+            {item.year != null && <DetailRow label="Year" value={item.year} />}
             {item.format && (
-              <>
-                <span className="mod-card-sep">·</span>
-                <span className="mod-card-meta-k">Format</span>
-                <span className="mod-card-meta-v">{FORMAT_LABEL[item.format] ?? item.format}</span>
-              </>
+              <DetailRow label="Format" value={FORMAT_LABEL[item.format] ?? item.format} />
             )}
-          </p>
+            {item.episodes != null && <DetailRow label="Episodes" value={item.episodes} />}
+            {item.studio && <DetailRow label="Studio" value={item.studio} />}
+            {item.reference_url && (
+              <DetailRow
+                label="Reference"
+                value={
+                  <a href={item.reference_url} target="_blank" rel="noopener noreferrer">
+                    ↗ {item.reference_url}
+                  </a>
+                }
+              />
+            )}
+          </div>
         )}
 
-        {isSinger && item.singer_type && (
-          <p className="mod-card-meta">
-            <span className="mod-card-meta-k">Type</span>
-            <span className="mod-card-meta-v">{SINGER_TYPE_LABEL[item.singer_type] ?? item.singer_type}</span>
-          </p>
+        {isSinger && (
+          <div className="mod-card-rows">
+            {item.name_native && <DetailRow label="Native" value={item.name_native} />}
+            {item.singer_type && (
+              <DetailRow label="Type" value={SINGER_TYPE_LABEL[item.singer_type] ?? item.singer_type} />
+            )}
+            {item.active_since != null && (
+              <DetailRow label="Active since" value={item.active_since} />
+            )}
+            {item.bio && <DetailRow label="Bio" value={<span className="mod-card-bio">{item.bio}</span>} />}
+            {item.reference_url && (
+              <DetailRow
+                label="Reference"
+                value={
+                  <a href={item.reference_url} target="_blank" rel="noopener noreferrer">
+                    ↗ {item.reference_url}
+                  </a>
+                }
+              />
+            )}
+          </div>
+        )}
+
+        {item.notes_for_moderator && (
+          <div className="mod-card-notes">
+            <span className="mod-card-notes-k">Note to moderator</span>
+            <p className="mod-card-notes-v">{item.notes_for_moderator}</p>
+          </div>
         )}
 
         <p className="mod-card-by">
@@ -197,17 +261,6 @@ function ItemCard({ item }: { item: ModerationItem }) {
             <em>Submitted by unknown user</em>
           )}
         </p>
-
-        {isOpening && item.youtube_url && (
-          <a
-            className="mod-card-link"
-            href={item.youtube_url}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            ↗ Open video on YouTube
-          </a>
-        )}
 
         <div className="mod-card-actions">
           <form action="/api/mod/decide" method="post" className="mod-form">
