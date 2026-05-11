@@ -37,15 +37,21 @@ const FORMAT_LABEL: Record<string, string> = {
   special: "Special",
 };
 
+function kindTag(kind: TrackKind): "OP" | "ED" | "OST" {
+  if (kind === "ending") return "ED";
+  if (kind === "ost") return "OST";
+  return "OP";
+}
+
 function kindLabel(op: AnimeOpening): string {
-  const tag = op.kind === "opening" ? "OP" : op.kind === "ending" ? "ED" : "OST";
+  const tag = kindTag(op.kind);
   return op.sequence_number != null ? `${tag} ${op.sequence_number}` : tag;
 }
 
-function kindClass(kind: TrackKind): string {
-  if (kind === "opening") return "op";
+function kindClass(kind: TrackKind): "op" | "ed" | "ost" {
   if (kind === "ending") return "ed";
-  return "ost";
+  if (kind === "ost") return "ost";
+  return "op";
 }
 
 // ---------------------------------------------------------------------------

@@ -2171,7 +2171,7 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   border-bottom: 1px solid var(--line);
 }
 .singer-portrait {
-  width: 180px; height: 180px; border-radius: 50%;
+  width: 100%; aspect-ratio: 1/1; border-radius: 50%;
   border: 1px solid var(--line-2); background: var(--bg-2);
   background-image: repeating-linear-gradient(60deg, #1a1628 0 12px, #2a2240 12px 13px);
   overflow: hidden; display: grid; place-items: center;
@@ -2564,19 +2564,22 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 }
 .rail-card:hover .rail-play { opacity: 1; }
 
-.rail-meta { display: flex; flex-direction: column; gap: 3px; }
+.rail-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .rail-title {
   font-size: 13px; font-weight: 600; color: var(--fg);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .current-card .rail-title { color: var(--accent); }
+.rail-sub-row {
+  display: flex; align-items: baseline; gap: 8px; min-width: 0;
+}
 .rail-sub {
   font-family: var(--mono); font-size: 11px; color: var(--fg-3);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1; min-width: 0;
 }
 .rail-rating {
-  font-family: var(--mono); font-size: 12px; color: var(--fg-2); font-weight: 600;
-  display: flex; align-items: baseline; gap: 6px; margin-top: 2px;
+  font-family: var(--mono); font-size: 11px; color: var(--fg-2); font-weight: 600;
+  flex-shrink: 0;
 }
-.rail-rating em { font-style: normal; font-size: 10px; color: var(--fg-4); }
-.rail-ct { font-size: 10px; color: var(--fg-4); }
+.rail-rating em { font-style: normal; font-size: 10px; color: var(--fg-4); margin-left: 1px; }

@@ -29,15 +29,21 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 // Helpers
 // ---------------------------------------------------------------------------
 
+function kindTag(kind: TrackKind): "OP" | "ED" | "OST" {
+  if (kind === "ending") return "ED";
+  if (kind === "ost") return "OST";
+  return "OP";
+}
+
 function kindLabel(op: SingerOpening): string {
-  const tag = op.kind === "opening" ? "OP" : op.kind === "ending" ? "ED" : "OST";
+  const tag = kindTag(op.kind);
   return op.sequence_number != null ? `${tag} ${op.sequence_number}` : tag;
 }
 
-function kindClass(kind: TrackKind): string {
-  if (kind === "opening") return "op";
+function kindClass(kind: TrackKind): "op" | "ed" | "ost" {
   if (kind === "ending") return "ed";
-  return "ost";
+  if (kind === "ost") return "ost";
+  return "op";
 }
 
 const TYPE_LABEL: Record<string, string> = {

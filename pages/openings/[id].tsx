@@ -305,13 +305,14 @@ function Rail({
               })()}
               <div className="rail-meta">
                 <div className="rail-title">{item.title}</div>
-                <div className="rail-sub">{item.subtitle}</div>
-                {item.rating_count > 0 && (
-                  <div className="rail-rating">
-                    {item.avg_rating.toFixed(1)}<em>/10</em>
-                    <span className="rail-ct">{item.rating_count}</span>
-                  </div>
-                )}
+                <div className="rail-sub-row">
+                  <span className="rail-sub">{item.subtitle}</span>
+                  {item.rating_count > 0 && (
+                    <span className="rail-rating">
+                      {item.avg_rating.toFixed(1)}<em>/10</em>
+                    </span>
+                  )}
+                </div>
               </div>
             </Link>
           );

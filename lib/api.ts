@@ -65,13 +65,27 @@ function getCsrfTokenFromCookieHeader(cookieHeader?: string): string | null {
   return null;
 }
 
+const VALID_KINDS = new Set(["opening", "ending", "ost"]);
+
+function normalizeKind(value: unknown): "opening" | "ending" | "ost" {
+  if (typeof value === "string") {
+    const lower = value.toLowerCase();
+    if (VALID_KINDS.has(lower)) return lower as "opening" | "ending" | "ost";
+  }
+  return "opening";
+}
+
 function normalizeOpening(opening: any): Opening {
   return {
     ...opening,
-    kind: opening.kind ?? "opening",
+    kind: normalizeKind(opening.kind),
     status: opening.status ?? "approved",
     submitted_at: opening.submitted_at ?? opening.approved_at ?? new Date(0).toISOString(),
   };
+}
+
+function normalizeNestedOpening<T extends { kind?: unknown }>(item: T): T & { kind: "opening" | "ending" | "ost" } {
+  return { ...item, kind: normalizeKind(item.kind) };
 }
 
 async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
@@ -170,11 +184,17 @@ export function getOpening(id: string, cookie?: string): Promise<Opening> {
 }
 
 export function getAnime(id: string, cookie?: string): Promise<AnimeDetail> {
-  return apiFetchData<AnimeDetail>(`/anime/${encodeURIComponent(id)}`, { cookie });
+  return apiFetchData<AnimeDetail>(`/anime/${encodeURIComponent(id)}`, { cookie }).then((d) => ({
+    ...d,
+    openings: (d.openings ?? []).map(normalizeNestedOpening),
+  }));
 }
 
 export function getSinger(id: string, cookie?: string): Promise<SingerDetail> {
-  return apiFetchData<SingerDetail>(`/singers/${encodeURIComponent(id)}`, { cookie });
+  return apiFetchData<SingerDetail>(`/singers/${encodeURIComponent(id)}`, { cookie }).then((d) => ({
+    ...d,
+    openings: (d.openings ?? []).map(normalizeNestedOpening),
+  }));
 }
 
 export interface SearchParams {
