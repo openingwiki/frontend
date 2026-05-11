@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState, useCallback, useRef, useEffect } from "react";
 import Layout from "@/components/Layout";
-import { getOpening } from "@/lib/api";
+import { getAnime, getOpening, getSinger } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import { pushToast } from "@/lib/toast";
 import { youtubeEmbedURL } from "@/lib/youtube";
@@ -14,6 +14,8 @@ interface Props {
   modQueueCount: number;
   opening: Opening;
   embedUrl: string | null;
+  animeCoverUrl: string | null;
+  singerCoverUrl: string | null;
 }
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
@@ -24,12 +26,18 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const id = ctx.params?.id as string;
   try {
     const opening = await getOpening(id, session.cookie);
+    const [anime, singer] = await Promise.all([
+      getAnime(opening.anime.id, session.cookie).catch(() => null),
+      getSinger(opening.singer.id, session.cookie).catch(() => null),
+    ]);
     return {
       props: {
         user: session.user,
         modQueueCount: session.modQueueCount,
         opening,
         embedUrl: youtubeEmbedURL(opening.youtube_url),
+        animeCoverUrl: anime?.cover_image_url ?? null,
+        singerCoverUrl: singer?.cover_image_url ?? null,
       },
     };
   } catch {
@@ -41,7 +49,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 // Entity picker (anime / singer search inline dropdown)
 // ---------------------------------------------------------------------------
 
-interface EntityItem { id: string; name: string; sublabel?: string }
+interface EntityItem { id: string; name: string; sublabel?: string; coverUrl?: string | null }
 
 interface RelationPickerProps {
   label: string;
@@ -72,8 +80,8 @@ function RelationPicker({ label, kind, value, onChange }: RelationPickerProps) {
       setResults(
         items.map((x) =>
           kind === "anime"
-            ? { id: x.id, name: x.name, sublabel: x.year ? `${x.year} · ${(x.format ?? "").toUpperCase().replace("_", " ")}` : undefined }
-            : { id: x.id, name: x.name, sublabel: (x.type ?? "").replace(/_/g, " ") },
+            ? { id: x.id, name: x.name, coverUrl: x.cover_image_url ?? null, sublabel: x.year ? `${x.year} · ${(x.format ?? "").toUpperCase().replace("_", " ")}` : undefined }
+            : { id: x.id, name: x.name, coverUrl: x.cover_image_url ?? null, sublabel: (x.type ?? "").replace(/_/g, " ") },
         ),
       );
     } finally {
@@ -140,7 +148,12 @@ function RelationPicker({ label, kind, value, onChange }: RelationPickerProps) {
           </div>
         ) : (
           <div className={`edit-relation${kind === "singer" ? " singer" : ""}`}>
-            <div className="edit-relation-ic" />
+            <div className="edit-relation-ic">
+              {value.coverUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={value.coverUrl} alt="" />
+              )}
+            </div>
             <div>
               <div className="edit-relation-name">{value.name}</div>
               {value.sublabel && <div className="edit-relation-sub">{value.sublabel}</div>}
@@ -163,14 +176,14 @@ const KIND_OPTIONS: { value: TrackKind; tag: string; label: string }[] = [
   { value: "ost",     tag: "OST", label: "OST / insert" },
 ];
 
-export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl }: Props) {
+export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl, animeCoverUrl, singerCoverUrl }: Props) {
   const router = useRouter();
 
   const [title, setTitle] = useState(opening.title);
   const [youtubeUrl, setYoutubeUrl] = useState(opening.youtube_url);
   const [kind, setKind] = useState<TrackKind>(opening.kind);
-  const [anime, setAnime] = useState<EntityItem>({ id: opening.anime.id, name: opening.anime.name });
-  const [singer, setSinger] = useState<EntityItem>({ id: opening.singer.id, name: opening.singer.name });
+  const [anime, setAnime] = useState<EntityItem>({ id: opening.anime.id, name: opening.anime.name, coverUrl: animeCoverUrl });
+  const [singer, setSinger] = useState<EntityItem>({ id: opening.singer.id, name: opening.singer.name, coverUrl: singerCoverUrl });
   const [notes, setNotes] = useState(opening.notes_for_moderator ?? "");
 
   const [saving, setSaving] = useState(false);
@@ -258,16 +271,6 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
     >
       <div className="wrap">
 
-        {/* Admin rolebar */}
-        <div className="edit-rolebar">
-          <span style={{ color: "var(--fg-2)" }}>Editing as admin</span>
-          <span style={{ color: "var(--fg-4)" }}>·</span>
-          <Link href="/mod">Moderation queue ({modQueueCount})</Link>
-          <span style={{ marginLeft: "auto" }}>
-            <Link href={`/openings/${opening.id}`}>← View public page</Link>
-          </span>
-        </div>
-
         {/* Breadcrumb */}
         <div className="edit-crumb">
           <Link href="/">Home</Link>
@@ -280,6 +283,10 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
         {/* Heading */}
         <div className="edit-head">
           <div>
+            <div className="edit-eyebrow">
+              <span className="edit-admin-badge">Admin · Editing</span>
+              <Link href="/mod" className="edit-eyebrow-link">Moderation queue ({modQueueCount})</Link>
+            </div>
             <h1 className="edit-h1">Editing <em>{displayName}</em></h1>
             <div className="edit-sub">
               <Link href={`/anime/${opening.anime.id}`}>{opening.anime.name}</Link>
@@ -315,7 +322,7 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
                         title={opening.title}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
-                        style={{ width: "100%", height: "100%", border: 0 }}
+                        frameBorder="0"
                       />
                     ) : (
                       <span className="edit-preview-ph">[ youtube ]</span>
@@ -505,9 +512,12 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
           </aside>
         </div>
 
-        {/* Sticky save bar */}
-        {isDirty && (
-          <div className="edit-save-bar">
+      </div>
+
+      {/* Sticky save bar — fixed to viewport so it spans full width */}
+      {isDirty && (
+        <div className="edit-save-bar">
+          <div className="edit-save-bar-inner wrap">
             <span className="edit-sb-status">
               <span className="edit-sb-dot" />
               <span className="edit-sb-lbl">Unsaved changes</span>
@@ -522,9 +532,8 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
               </button>
             </div>
           </div>
-        )}
-
-      </div>
+        </div>
+      )}
 
       {/* Delete confirm modal */}
       {confirmDelete && (

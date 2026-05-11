@@ -258,14 +258,10 @@ interface RailItem {
 
 function Rail({
   heading,
-  pageHref,
-  pageLinkLabel,
   items,
   currentId,
 }: {
   heading: React.ReactNode;
-  pageHref: string;
-  pageLinkLabel: string;
   items: RailItem[];
   currentId: string;
 }) {
@@ -275,8 +271,6 @@ function Rail({
       <div className="sec-head">
         <h2 className="sec-h2">{heading}</h2>
         <span className="sec-count">{items.length}</span>
-        <span className="spacer" />
-        <Link href={pageHref} className="all-link">{pageLinkLabel} →</Link>
       </div>
       <div className="rail">
         {items.map((item, i) => {
@@ -478,17 +472,13 @@ export default function OpeningDetail({
             </div>
 
             <Rail
-              heading={<>More from <em>{animeName}</em></>}
-              pageHref={`/anime/${animeId}`}
-              pageLinkLabel="Anime page"
+              heading={<>More from <Link href={`/anime/${animeId}`} className="sec-h2-link"><em>{animeName}</em></Link></>}
               items={animeRailItems}
               currentId={op.id}
             />
 
             <Rail
-              heading={<>More from <em>{singerName}</em></>}
-              pageHref={`/singers/${singerId}`}
-              pageLinkLabel="Singer page"
+              heading={<>More from <Link href={`/singers/${singerId}`} className="sec-h2-link"><em>{singerName}</em></Link></>}
               items={singerRailItems}
               currentId={op.id}
             />

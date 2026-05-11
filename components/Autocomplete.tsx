@@ -4,6 +4,8 @@ export interface AutocompleteItem {
   id: string;
   label: string;
   sublabel?: string;
+  coverUrl?: string | null;
+  iconShape?: "square" | "circle";
 }
 
 interface Props {
@@ -77,6 +79,12 @@ export default function Autocomplete({ placeholder, fetchItems, selected, onSele
     <div className="auto" ref={wrapRef}>
       {selected ? (
         <div className="auto-selected">
+          <div className={`auto-ic${selected.iconShape === "circle" ? " circle" : ""}`}>
+            {selected.coverUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={selected.coverUrl} alt="" />
+            )}
+          </div>
           <span>{selected.label}</span>
           {selected.sublabel && <span style={{ color: "var(--fg-3)", fontSize: 11, fontFamily: "var(--mono)" }}>{selected.sublabel}</span>}
           <button type="button" className="x" onClick={() => onSelect(null)} aria-label="Clear">×</button>
@@ -100,7 +108,12 @@ export default function Autocomplete({ placeholder, fetchItems, selected, onSele
                   onMouseDown={() => handleSelect(item)}
                   onMouseEnter={() => setActiveIdx(i)}
                 >
-                  <div className="ic" />
+                  <div className={`ic${item.iconShape === "circle" ? " circle" : ""}`}>
+                    {item.coverUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.coverUrl} alt="" />
+                    )}
+                  </div>
                   <div>
                     <div className="a-name">{item.label}</div>
                     {item.sublabel && <div className="a-sub">{item.sublabel}</div>}
