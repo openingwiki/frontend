@@ -1932,6 +1932,46 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 .mod-card-meta-v { color: var(--fg-2); }
 .mod-card-sep    { color: var(--fg-4); }
 
+/* Detail-row table for the expanded moderation card */
+.mod-card-rows {
+  display: grid; grid-template-columns: 100px 1fr; gap: 4px 14px;
+  margin: 4px 0 2px;
+  font-family: var(--mono); font-size: 12px;
+  word-break: break-word;
+}
+.mod-card-row { display: contents; }
+.mod-card-row-k {
+  color: var(--fg-4); text-transform: uppercase; letter-spacing: 0.08em;
+  font-size: 10px; padding-top: 2px;
+}
+.mod-card-row-v { color: var(--fg-2); min-width: 0; }
+.mod-card-row-v a { color: var(--accent); }
+.mod-card-row-v a:hover { text-decoration: underline; }
+.mod-card-bio {
+  display: block; color: var(--fg-2); font-family: var(--sans);
+  font-size: 13px; line-height: 1.45; white-space: pre-wrap;
+}
+
+.mod-card-notes {
+  margin-top: 2px; padding: 8px 10px;
+  border: 1px dashed var(--line-2); border-radius: 6px;
+  background: color-mix(in oklab, var(--warn) 5%, var(--bg-3));
+}
+.mod-card-notes-k {
+  display: block; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--warn);
+  margin-bottom: 4px;
+}
+.mod-card-notes-v {
+  margin: 0; font-family: var(--sans); font-size: 13px; line-height: 1.45;
+  color: var(--fg); white-space: pre-wrap; word-break: break-word;
+}
+
+@media (max-width: 600px) {
+  .mod-card-rows { grid-template-columns: 1fr; gap: 0 0; }
+  .mod-card-row-k { margin-top: 6px; }
+}
+
 .mod-card-by { margin: 0; font-family: var(--mono); font-size: 11px; color: var(--fg-4); }
 .mod-card-by strong { color: var(--fg-3); font-weight: 600; }
 
