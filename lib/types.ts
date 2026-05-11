@@ -269,10 +269,17 @@ export interface ModerationItem {
   // Set when type === "opening"
   title?: string;
   youtube_url?: string;
+  kind?: TrackKind;
   anime_name?: string;
   singer_name?: string;
   // Set when type === "anime" | "singer"
   name?: string;
+  cover_image_url?: string | null;
+  // Set when type === "anime"
+  year?: number;
+  format?: AnimeFormat;
+  // Set when type === "singer"
+  singer_type?: SingerType;
 }
 
 export interface ModerationQueuePage {

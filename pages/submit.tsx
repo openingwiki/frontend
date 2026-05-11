@@ -270,8 +270,12 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
 
     if (!res.ok) {
       const payload = await res.json().catch(() => ({}));
-      setError(payload.error ?? "Submission failed");
-      if (payload.fields) setFieldErrors(payload.fields);
+      const err = payload.error;
+      const message = typeof err === "string"
+        ? err
+        : (err?.message ?? "Submission failed");
+      setError(message);
+      if (err?.fields) setFieldErrors(err.fields);
       return;
     }
 

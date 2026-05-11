@@ -97,16 +97,42 @@ function formatDate(iso: string): string {
   });
 }
 
+const KIND_BADGE: Record<string, string> = {
+  opening: "OP",
+  ending: "ED",
+  ost: "OST",
+};
+
+const FORMAT_LABEL: Record<string, string> = {
+  tv: "TV series",
+  film: "Film",
+  ova_ona: "OVA / ONA",
+  special: "Special",
+};
+
+const SINGER_TYPE_LABEL: Record<string, string> = {
+  solo: "Solo artist",
+  band: "Band",
+  idol_group: "Idol group",
+  vocaloid_producer: "Vocaloid producer",
+  composer: "Composer",
+  other: "Other",
+};
+
 function ItemCard({ item }: { item: ModerationItem }) {
   const isOpening = item.type === "opening";
-  const thumb = isOpening && item.youtube_url ? youtubeThumbnail(item.youtube_url) : null;
+  const isAnime = item.type === "anime";
+  const isSinger = item.type === "singer";
+  const thumb = isOpening && item.youtube_url
+    ? youtubeThumbnail(item.youtube_url)
+    : item.cover_image_url ?? null;
   const title = isOpening ? item.title : item.name;
+  const thumbShape = isSinger ? "circle" : isAnime ? "poster" : "video";
 
   return (
     <li className="mod-card">
-      {/* Left: visual — YouTube thumbnail for openings, fallback tile for
-          anime/singer (cover images aren't sent in the queue payload). */}
-      <div className="mod-card-thumb" aria-hidden>
+      {/* Left: visual — YouTube thumbnail for openings, cover for anime/singer. */}
+      <div className={`mod-card-thumb mod-card-thumb-${thumbShape}`} aria-hidden>
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumb} alt="" loading="lazy" />
@@ -115,7 +141,9 @@ function ItemCard({ item }: { item: ModerationItem }) {
             {(title ?? item.type).slice(0, 2).toUpperCase()}
           </span>
         )}
-        <span className={`mod-card-pill mod-card-pill-${item.type}`}>{item.type}</span>
+        <span className={`mod-card-pill mod-card-pill-${item.type}`}>
+          {isOpening && item.kind ? KIND_BADGE[item.kind] ?? item.type : item.type}
+        </span>
       </div>
 
       {/* Right: meta + actions */}
@@ -132,6 +160,31 @@ function ItemCard({ item }: { item: ModerationItem }) {
             <span className="mod-card-sep">·</span>
             <span className="mod-card-meta-k">Singer</span>
             <span className="mod-card-meta-v">{item.singer_name ?? "—"}</span>
+          </p>
+        )}
+
+        {isAnime && (
+          <p className="mod-card-meta">
+            {item.year != null && (
+              <>
+                <span className="mod-card-meta-k">Year</span>
+                <span className="mod-card-meta-v">{item.year}</span>
+              </>
+            )}
+            {item.format && (
+              <>
+                <span className="mod-card-sep">·</span>
+                <span className="mod-card-meta-k">Format</span>
+                <span className="mod-card-meta-v">{FORMAT_LABEL[item.format] ?? item.format}</span>
+              </>
+            )}
+          </p>
+        )}
+
+        {isSinger && item.singer_type && (
+          <p className="mod-card-meta">
+            <span className="mod-card-meta-k">Type</span>
+            <span className="mod-card-meta-v">{SINGER_TYPE_LABEL[item.singer_type] ?? item.singer_type}</span>
           </p>
         )}
 
