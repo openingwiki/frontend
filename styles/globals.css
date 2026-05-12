@@ -1858,6 +1858,7 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   border-bottom: 1px solid var(--line);
 }
 .mod-tab {
+  display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 14px; border-radius: 6px 6px 0 0;
   font-family: var(--mono); font-size: 12px; color: var(--fg-3);
   border-bottom: 2px solid transparent;
@@ -1865,6 +1866,17 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 }
 .mod-tab:hover { color: var(--fg-2); }
 .mod-tab.on { color: var(--fg); border-bottom-color: var(--accent); }
+.mod-tab-count {
+  min-width: 22px; padding: 1px 7px; border-radius: 999px;
+  background: var(--bg-3); border: 1px solid var(--line);
+  font-family: var(--mono); font-size: 11px; line-height: 1.4;
+  color: var(--fg-3); text-align: center;
+}
+.mod-tab-count.on {
+  background: color-mix(in oklab, var(--accent) 18%, var(--bg-3));
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line));
+  color: var(--accent);
+}
 
 .mod-list {
   list-style: none; padding: 0; margin: 0;
@@ -2347,6 +2359,10 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   border: 1px solid var(--line); border-radius: 10px;
   background: var(--bg-2); overflow: hidden; margin-bottom: 18px;
 }
+/* Cards that host a floating dropdown (autocomplete) can't clip their
+   children, otherwise the dropdown gets cut off at the card edge and
+   slides under whatever sits below. */
+.edit-card.edit-card-pop { overflow: visible; }
 .edit-card-head {
   display: flex; align-items: center; gap: 10px;
   padding: 14px 18px; border-bottom: 1px solid var(--line);
