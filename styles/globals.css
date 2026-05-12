@@ -334,7 +334,9 @@ input, select { font: inherit; color: inherit; }
 /* Groups list */
 .grp-list { display: flex; flex-direction: column; }
 .grp-item {
-  display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center;
+  /* minmax(0, 1fr) so the name column can shrink below its content width
+     and the truncation rules on .grp-name actually take effect. */
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center;
   padding: 10px 14px; border-bottom: 1px solid var(--line);
   transition: background .1s;
 }
@@ -346,7 +348,14 @@ input, select { font: inherit; color: inherit; }
 .grp-icon { color: var(--fg-4); display: grid; place-items: center; }
 .grp-item.system .grp-icon { color: var(--accent); }
 .grp-item.public .grp-icon { color: var(--ok); }
-.grp-name { font-size: 13px; color: var(--fg); line-height: 1.2; }
+.grp-name {
+  font-size: 13px; color: var(--fg); line-height: 1.2;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* The PUBLIC pill is absolute over the row at right:46px — without
+   reserving space the name slides under it. 80px = pill width + offset
+   + a little breathing room. */
+.grp-item.public .grp-name { padding-right: 80px; }
 .grp-count { font-family: var(--mono); font-size: 11px; color: var(--fg-3); }
 .grp-public-link {
   position: absolute;
