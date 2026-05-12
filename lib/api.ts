@@ -5,6 +5,7 @@
 import type {
   AdjacentOpenings,
   AnimeDetail,
+  AnimeFormat,
   Group,
   GroupDetail,
   Opening,
@@ -14,6 +15,7 @@ import type {
   RateResponse,
   SearchResults,
   SingerDetail,
+  SingerType,
   SortKey,
   TrackKind,
   User,
@@ -316,6 +318,39 @@ export interface AdminUpdateOpeningInput {
 
 export function adminUpdateOpening(openingId: string, input: AdminUpdateOpeningInput, cookie?: string): Promise<void> {
   return apiFetchData<void>(`/admin/openings/${encodeURIComponent(openingId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cookie,
+  });
+}
+
+export interface AdminUpdateAnimeInput {
+  title_english: string;
+  year: number;
+  format: AnimeFormat;
+  reference_url: string;
+  cover_image_key: string;
+}
+
+export function adminUpdateAnime(animeId: string, input: AdminUpdateAnimeInput, cookie?: string): Promise<void> {
+  return apiFetchData<void>(`/admin/anime/${encodeURIComponent(animeId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cookie,
+  });
+}
+
+export interface AdminUpdateSingerInput {
+  name: string;
+  type: SingerType;
+  reference_url: string;
+  cover_image_key: string;
+}
+
+export function adminUpdateSinger(singerId: string, input: AdminUpdateSingerInput, cookie?: string): Promise<void> {
+  return apiFetchData<void>(`/admin/singers/${encodeURIComponent(singerId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

@@ -172,6 +172,11 @@ export default function SingerPage({ user, modQueueCount, singer }: Props) {
                 </svg>
                 Submit a track
               </Link>
+              {user?.role === "admin" && (
+                <Link href={`/singers/${singer.id}/edit`} className="btn">
+                  Edit
+                </Link>
+              )}
             </div>
           </div>
         </section>
