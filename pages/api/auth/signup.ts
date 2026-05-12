@@ -5,6 +5,7 @@ import {
   copyBackendCookies,
   readBackendError,
 } from "@/lib/api-proxy";
+import { safeRedirect } from "@/lib/redirect";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -15,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   const displayName =
     typeof req.body?.display_name === "string" ? req.body.display_name : "";
-  const next = typeof req.body?.next === "string" && req.body.next.startsWith("/") ? req.body.next : "/";
+  const next = safeRedirect(req.body?.next);
 
   const upstream = await fetch(backendUrl("/auth/signup"), {
     method: "POST",
