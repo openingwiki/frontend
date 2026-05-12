@@ -174,6 +174,11 @@ export default function AnimePage({ user, modQueueCount, anime }: Props) {
                   ↗ Reference
                 </a>
               )}
+              {user?.role === "admin" && (
+                <Link href={`/anime/${anime.id}/edit`} className="btn">
+                  Edit
+                </Link>
+              )}
             </div>
           </div>
         </section>

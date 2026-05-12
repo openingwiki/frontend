@@ -189,6 +189,9 @@ export interface AnimeDetail {
   studio: string | null;
   reference_url: string;
   cover_image_url: string | null;
+  // Internal storage key for the cover — used by the admin edit form so the
+  // existing cover is preserved when only other fields change.
+  cover_image_key: string;
   openings: AnimeOpening[];
 }
 
@@ -197,7 +200,11 @@ export interface SingerDetail {
   name: string;
   name_native: string | null;
   type: SingerType;
+  active_since: number | null;
+  bio: string | null;
+  reference_url: string;
   cover_image_url: string | null;
+  cover_image_key: string;
   openings: SingerOpening[];
 }
 
