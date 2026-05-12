@@ -41,6 +41,9 @@ export default function LoginPage({ user, modQueueCount }: Props) {
           <div className="actions">
             <button type="submit" className="btn primary">Log in</button>
           </div>
+          <p style={{ marginTop: "12px", fontSize: "14px" }}>
+            <a href="/forgot-password">Forgot your password?</a>
+          </p>
         </form>
       </div>
     </Layout>
