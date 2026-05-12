@@ -1,6 +1,5 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
-import { useState } from "react";
 import Layout from "@/components/Layout";
 import GroupsPanel from "@/components/GroupsPanel";
 import AvatarManager from "@/components/AvatarManager";
@@ -21,101 +20,6 @@ const ROLE_LABEL: Record<User["role"], string> = {
   admin: "Admin",
 };
 
-type ChangePasswordStatus = "idle" | "loading" | "success" | "error";
-
-function ChangePasswordForm() {
-  const [status, setStatus] = useState<ChangePasswordStatus>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setStatus("loading");
-    setError(null);
-    setFieldErrors({});
-    const form = e.currentTarget;
-    const current = (form.elements.namedItem("current_password") as HTMLInputElement).value;
-    const next = (form.elements.namedItem("new_password") as HTMLInputElement).value;
-    const confirm = (form.elements.namedItem("confirm_password") as HTMLInputElement).value;
-    if (next !== confirm) {
-      setStatus("error");
-      setFieldErrors({ confirm_password: "Passwords don't match." });
-      return;
-    }
-    try {
-      const res = await fetch("/api/auth/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current_password: current, new_password: next }),
-      });
-      if (res.ok) {
-        setStatus("success");
-        form.reset();
-      } else {
-        const body = await res.json().catch(() => ({}));
-        setStatus("error");
-        if (body?.error?.details) {
-          setFieldErrors(body.error.details);
-        } else {
-          setError(body?.error ?? "Could not change password. Try again.");
-        }
-      }
-    } catch {
-      setStatus("error");
-      setError("Could not reach the server. Try again in a moment.");
-    }
-  }
-
-  return (
-    <section className="profile-section">
-      <h2 className="profile-section-h">Change password</h2>
-      {status === "success" && <p style={{ color: "green", marginBottom: "12px" }}>Password updated.</p>}
-      {error && <p className="mock-notice">{error}</p>}
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="current_password">Current password</label>
-          <input
-            id="current_password"
-            name="current_password"
-            type="password"
-            required
-            autoComplete="current-password"
-          />
-          {fieldErrors.current_password && <p className="mock-notice">{fieldErrors.current_password}</p>}
-        </div>
-        <div>
-          <label htmlFor="new_password">New password</label>
-          <input
-            id="new_password"
-            name="new_password"
-            type="password"
-            required
-            minLength={8}
-            autoComplete="new-password"
-          />
-          {fieldErrors.new_password && <p className="mock-notice">{fieldErrors.new_password}</p>}
-        </div>
-        <div>
-          <label htmlFor="confirm_password">Confirm new password</label>
-          <input
-            id="confirm_password"
-            name="confirm_password"
-            type="password"
-            required
-            minLength={8}
-            autoComplete="new-password"
-          />
-          {fieldErrors.confirm_password && <p className="mock-notice">{fieldErrors.confirm_password}</p>}
-        </div>
-        <div className="actions" style={{ marginTop: "12px" }}>
-          <button type="submit" className="btn primary sm" disabled={status === "loading"}>
-            {status === "loading" ? "Saving…" : "Change password"}
-          </button>
-        </div>
-      </form>
-    </section>
-  );
-}
 
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const session = await loadSession(ctx);
@@ -255,8 +159,6 @@ export default function ProfilePage({ user, modQueueCount, groups, apiOnline }: 
                 <dd>{formatJoined(user.created_at)}</dd>
               </dl>
             </section>
-
-            <ChangePasswordForm />
           </div>
 
           <aside className="side">

@@ -15,6 +15,7 @@ export interface User {
   created_at: string;
   email_verified: boolean;
   avatar_url: string | null;
+  banned_at: string | null;
 }
 
 export interface Anime {

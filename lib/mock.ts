@@ -137,6 +137,7 @@ export function mockMe(): User {
     created_at: "2024-01-01T00:00:00Z",
     email_verified: true,
     avatar_url: null,
+    banned_at: null,
   };
 }
 
