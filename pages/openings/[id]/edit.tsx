@@ -184,7 +184,6 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
   const [kind, setKind] = useState<TrackKind>(opening.kind);
   const [anime, setAnime] = useState<EntityItem>({ id: opening.anime.id, name: opening.anime.name, coverUrl: animeCoverUrl });
   const [singer, setSinger] = useState<EntityItem>({ id: opening.singer.id, name: opening.singer.name, coverUrl: singerCoverUrl });
-  const [notes, setNotes] = useState(opening.notes_for_moderator ?? "");
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -195,8 +194,7 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
     youtubeUrl !== opening.youtube_url ||
     kind !== opening.kind ||
     anime.id !== opening.anime.id ||
-    singer.id !== opening.singer.id ||
-    notes !== (opening.notes_for_moderator ?? "");
+    singer.id !== opening.singer.id;
 
   // Esc closes delete confirm
   useEffect(() => {
@@ -220,7 +218,6 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
           kind,
           anime_id: anime.id,
           singer_id: singer.id,
-          notes_for_moderator: notes || null,
         }),
       });
       if (!res.ok && res.status !== 204) {
@@ -420,7 +417,7 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
             </div>
 
             {/* 03 Attribution */}
-            <div className="edit-card">
+            <div className="edit-card edit-card-pop">
               <div className="edit-card-head"><span className="edit-card-step">03</span> Attribution</div>
               <div className="edit-card-body edit-attr-grid">
                 <RelationPicker
@@ -434,22 +431,6 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
                   kind="singer"
                   value={singer}
                   onChange={setSinger}
-                />
-              </div>
-            </div>
-
-            {/* 04 Notes */}
-            <div className="edit-card">
-              <div className="edit-card-head">
-                <span className="edit-card-step">04</span> Notes
-                <span className="edit-card-meta" style={{ marginLeft: 8 }}>internal · not shown publicly</span>
-              </div>
-              <div className="edit-card-body">
-                <textarea
-                  className="edit-textarea"
-                  placeholder="Mod notes about this entry…"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
             </div>

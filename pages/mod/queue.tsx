@@ -15,6 +15,7 @@ interface Props {
   type: ModerationItemType;
   items: ModerationItem[];
   total: number;
+  totalsByType: Record<ModerationItemType, number>;
   page: number;
   perPage: number;
   hasNext: boolean;
@@ -50,13 +51,29 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   let hasNext = false;
   let perPage = 20;
   let apiOnline = true;
+  const totalsByType: Record<ModerationItemType, number> = {
+    opening: 0,
+    anime: 0,
+    singer: 0,
+  };
 
   try {
-    const res = await listModerationQueue({ type, page, cookie: session.cookie });
-    items = res.items as ModerationItem[];
-    total = res.total;
-    perPage = res.per_page;
-    hasNext = res.has_next;
+    // Active type — full page of items. Other types — pageSize=1 so we only
+    // need the total count for the tab badge, not the rows themselves.
+    const fetches = TYPES.map(async (t) => {
+      if (t === type) {
+        const res = await listModerationQueue({ type: t, page, cookie: session.cookie });
+        items = res.items as ModerationItem[];
+        total = res.total;
+        perPage = res.per_page;
+        hasNext = res.has_next;
+        totalsByType[t] = res.total;
+      } else {
+        const res = await listModerationQueue({ type: t, page: 1, pageSize: 1, cookie: session.cookie });
+        totalsByType[t] = res.total;
+      }
+    });
+    await Promise.all(fetches);
   } catch {
     apiOnline = false;
   }
@@ -76,6 +93,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       type,
       items,
       total,
+      totalsByType,
       page,
       perPage,
       hasNext,
@@ -295,6 +313,7 @@ export default function ModQueuePage({
   type,
   items,
   total,
+  totalsByType,
   page,
   hasNext,
   apiOnline,
@@ -334,15 +353,19 @@ export default function ModQueuePage({
         </header>
 
         <nav className="mod-tabs">
-          {TYPES.map((t) => (
-            <Link
-              key={t}
-              href={`/mod/queue?type=${t}`}
-              className={`mod-tab${type === t ? " on" : ""}`}
-            >
-              {TYPE_LABEL[t]}
-            </Link>
-          ))}
+          {TYPES.map((t) => {
+            const count = totalsByType[t] ?? 0;
+            return (
+              <Link
+                key={t}
+                href={`/mod/queue?type=${t}`}
+                className={`mod-tab${type === t ? " on" : ""}`}
+              >
+                <span>{TYPE_LABEL[t]}</span>
+                <span className={`mod-tab-count${count > 0 ? " on" : ""}`}>{count}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         {!apiOnline ? (

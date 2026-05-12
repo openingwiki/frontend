@@ -232,7 +232,6 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [selectedAnime, setSelectedAnime] = useState<AutocompleteItem | null>(null);
   const [selectedSinger, setSelectedSinger] = useState<AutocompleteItem | null>(null);
-  const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -262,7 +261,6 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
         kind,
         anime_id: selectedAnime!.id,
         singer_id: selectedSinger!.id,
-        notes_for_moderator: notes.trim(),
       }),
     });
 
@@ -357,12 +355,6 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
             </div>
           </div>
 
-          <div className="sub-section"><span className="sub-step">04</span> Anything else?</div>
-          <div className="sub-row">
-            <label>Notes for moderator <span className="opt">(optional)</span></label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Sources, alternate titles, why this video over another upload…" />
-          </div>
-
         </div>
         <div className="sub-form-foot">
           <span className="sub-foot-note">⌘ + Enter to submit</span>
@@ -391,9 +383,9 @@ function AnimePane() {
   ];
 
   const [f, setF] = useState({
-    title_romaji: "", title_english: "", title_native: "",
-    year: "", format: "tv" as AnimeFormat, episodes: "",
-    studio: "", reference_url: "", notes_for_moderator: "",
+    title_english: "",
+    year: "", format: "tv" as AnimeFormat,
+    reference_url: "",
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setF((prev) => ({ ...prev, [k]: e.target.value }));
@@ -406,6 +398,13 @@ function AnimePane() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errs: Record<string, string> = {};
+    if (!coverKey) errs.cover_image_key = "Cover image is required";
+    if (!f.title_english.trim()) errs.title_english = "English title is required";
+    if (!f.year.trim()) errs.year = "Year is required";
+    if (!f.reference_url.trim()) errs.reference_url = "Reference link is required";
+    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+
     setSubmitting(true);
     setError(null);
     setFieldErrors({});
@@ -413,7 +412,7 @@ function AnimePane() {
     const res = await fetch("/api/anime", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...f, year: Number(f.year) || 0, episodes: f.episodes ? Number(f.episodes) : undefined, cover_image_key: coverKey }),
+      body: JSON.stringify({ ...f, year: Number(f.year) || 0, cover_image_key: coverKey }),
     });
 
     setSubmitting(false);
@@ -432,7 +431,7 @@ function AnimePane() {
         <div className="sub-form-body" style={{ textAlign: "center", padding: "48px 26px" }}>
           <p style={{ fontSize: 16, marginBottom: 20 }}>Anime submitted for review ✓</p>
           <p className="hint" style={{ marginBottom: 24 }}>Once a mod approves it, it will appear in the anime picker on the Opening tab.</p>
-          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ title_romaji: "", title_english: "", title_native: "", year: "", format: "tv", episodes: "", studio: "", reference_url: "", notes_for_moderator: "" }); }}>
+          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ title_english: "", year: "", format: "tv", reference_url: "" }); setCoverKey(""); }}>
             Submit another
           </button>
         </div>
@@ -448,52 +447,34 @@ function AnimePane() {
         </div>
         <div className="sub-form-body">
 
-          <div className="sub-section"><span className="sub-step">01</span> Cover image <span className="opt">(optional)</span></div>
+          <div className="sub-section"><span className="sub-step">01</span> Cover image <span className="req">*</span></div>
           <CoverUpload
             entityType="anime"
             aspect="poster"
             onUploaded={(key) => setCoverKey(key)}
           />
+          {fieldErrors.cover_image_key && <span className="ferr">{fieldErrors.cover_image_key}</span>}
 
-          <div className="sub-section"><span className="sub-step">02</span> Titles</div>
+          <div className="sub-section"><span className="sub-step">02</span> Title</div>
           <div className="sub-row">
             <label>English title <span className="req">*</span></label>
             <input type="text" value={f.title_english} onChange={set("title_english")} placeholder="Attack on Titan" />
             {fieldErrors.title_english && <span className="ferr">{fieldErrors.title_english}</span>}
           </div>
-          <div className="sub-grid-2">
-            <div className="sub-row">
-              <label>Romaji title <span className="opt">(optional)</span></label>
-              <input type="text" value={f.title_romaji} onChange={set("title_romaji")} placeholder="Shingeki no Kyojin" />
-              <span className="hint">Latin-script transliteration, if different from English.</span>
-            </div>
-            <div className="sub-row">
-              <label>Native (日本語) <span className="opt">(optional)</span></label>
-              <input type="text" value={f.title_native} onChange={set("title_native")} placeholder="進撃の巨人" />
-            </div>
-          </div>
 
           <div className="sub-section"><span className="sub-step">03</span> Production</div>
-          <div className="sub-grid-3">
+          <div className="sub-grid-2">
             <div className="sub-row">
               <label>Year <span className="req">*</span></label>
               <input type="text" inputMode="numeric" value={f.year} onChange={set("year")} placeholder="2013" />
               {fieldErrors.year && <span className="ferr">{fieldErrors.year}</span>}
             </div>
             <div className="sub-row">
-              <label>Format</label>
+              <label>Format <span className="req">*</span></label>
               <select value={f.format} onChange={set("format")}>
                 {FORMATS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
             </div>
-            <div className="sub-row">
-              <label>Episodes <span className="opt">(optional)</span></label>
-              <input type="text" inputMode="numeric" value={f.episodes} onChange={set("episodes")} placeholder="25" />
-            </div>
-          </div>
-          <div className="sub-row">
-            <label>Studio <span className="opt">(optional)</span></label>
-            <input type="text" value={f.studio} onChange={set("studio")} placeholder="Wit Studio · MAPPA" />
           </div>
 
           <div className="sub-section"><span className="sub-step">04</span> Verification</div>
@@ -502,10 +483,6 @@ function AnimePane() {
             <input type="url" value={f.reference_url} onChange={set("reference_url")} placeholder="https://anilist.co/anime/… or MyAnimeList / official site" />
             <span className="hint">Helps the moderator verify the entry. AniList preferred.</span>
             {fieldErrors.reference_url && <span className="ferr">{fieldErrors.reference_url}</span>}
-          </div>
-          <div className="sub-row">
-            <label>Notes for moderator <span className="opt">(optional)</span></label>
-            <textarea value={f.notes_for_moderator} onChange={set("notes_for_moderator")} rows={3} placeholder="Sequel/prequel relationships, alternate titles…" />
           </div>
 
         </div>
@@ -538,8 +515,8 @@ function SingerPane() {
   ];
 
   const [f, setF] = useState({
-    name: "", name_native: "", type: "solo" as SingerType,
-    active_since: "", bio: "", reference_url: "", notes_for_moderator: "",
+    name: "", type: "solo" as SingerType,
+    reference_url: "",
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setF((prev) => ({ ...prev, [k]: e.target.value }));
@@ -552,6 +529,12 @@ function SingerPane() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errs: Record<string, string> = {};
+    if (!coverKey) errs.cover_image_key = "Photo is required";
+    if (!f.name.trim()) errs.name = "Name is required";
+    if (!f.reference_url.trim()) errs.reference_url = "Reference link is required";
+    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
+
     setSubmitting(true);
     setError(null);
     setFieldErrors({});
@@ -559,7 +542,7 @@ function SingerPane() {
     const res = await fetch("/api/singers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...f, active_since: f.active_since ? Number(f.active_since) : undefined, cover_image_key: coverKey }),
+      body: JSON.stringify({ ...f, cover_image_key: coverKey }),
     });
 
     setSubmitting(false);
@@ -578,7 +561,7 @@ function SingerPane() {
         <div className="sub-form-body" style={{ textAlign: "center", padding: "48px 26px" }}>
           <p style={{ fontSize: 16, marginBottom: 20 }}>Singer submitted for review ✓</p>
           <p className="hint" style={{ marginBottom: 24 }}>Once approved, they will appear in the singer picker on the Opening tab.</p>
-          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ name: "", name_native: "", type: "solo", active_since: "", bio: "", reference_url: "", notes_for_moderator: "" }); }}>
+          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ name: "", type: "solo", reference_url: "" }); setCoverKey(""); }}>
             Submit another
           </button>
         </div>
@@ -594,12 +577,13 @@ function SingerPane() {
         </div>
         <div className="sub-form-body">
 
-          <div className="sub-section"><span className="sub-step">01</span> Photo <span className="opt">(optional)</span></div>
+          <div className="sub-section"><span className="sub-step">01</span> Photo <span className="req">*</span></div>
           <CoverUpload
             entityType="singer"
             aspect="square"
             onUploaded={(key) => setCoverKey(key)}
           />
+          {fieldErrors.cover_image_key && <span className="ferr">{fieldErrors.cover_image_key}</span>}
 
           <div className="sub-section"><span className="sub-step">02</span> Identity</div>
           <div className="sub-row">
@@ -608,28 +592,14 @@ function SingerPane() {
             <span className="hint">Romaji or English — whichever is the canonical form.</span>
             {fieldErrors.name && <span className="ferr">{fieldErrors.name}</span>}
           </div>
-          <div className="sub-row">
-            <label>Native (日本語) <span className="opt">(optional)</span></label>
-            <input type="text" value={f.name_native} onChange={set("name_native")} placeholder="ヨアソビ" />
-          </div>
 
           <div className="sub-section"><span className="sub-step">03</span> About</div>
-          <div className="sub-grid-2">
-            <div className="sub-row">
-              <label>Type <span className="req">*</span></label>
-              <select value={f.type} onChange={set("type")}>
-                {TYPES.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-              </select>
-              {fieldErrors.type && <span className="ferr">{fieldErrors.type}</span>}
-            </div>
-            <div className="sub-row">
-              <label>Active since <span className="opt">(optional)</span></label>
-              <input type="text" inputMode="numeric" value={f.active_since} onChange={set("active_since")} placeholder="2019" />
-            </div>
-          </div>
           <div className="sub-row">
-            <label>Short bio <span className="opt">(optional)</span></label>
-            <textarea value={f.bio} onChange={set("bio")} rows={3} placeholder="One or two sentences. Genres, notable works, anything that helps recognize them." />
+            <label>Type <span className="req">*</span></label>
+            <select value={f.type} onChange={set("type")}>
+              {TYPES.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            </select>
+            {fieldErrors.type && <span className="ferr">{fieldErrors.type}</span>}
           </div>
 
           <div className="sub-section"><span className="sub-step">04</span> Verification</div>
@@ -637,10 +607,6 @@ function SingerPane() {
             <label>Reference link <span className="req">*</span></label>
             <input type="url" value={f.reference_url} onChange={set("reference_url")} placeholder="Official site, Spotify, Wikipedia…" />
             {fieldErrors.reference_url && <span className="ferr">{fieldErrors.reference_url}</span>}
-          </div>
-          <div className="sub-row">
-            <label>Notes for moderator <span className="opt">(optional)</span></label>
-            <textarea value={f.notes_for_moderator} onChange={set("notes_for_moderator")} rows={3} placeholder="Anything that helps the reviewer" />
           </div>
 
         </div>
