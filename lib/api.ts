@@ -520,3 +520,20 @@ export function deleteOpeningComment(
     cookie,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Solo Endless — read-only SSR helpers. Mutating calls (start run, submit
+// answer) go through the browser-side playClient in lib/play.ts so the
+// session cookie + CSRF flow matches the rest of the mutating API.
+// ---------------------------------------------------------------------------
+
+import type { SoloLeaderboard, SoloMyStats } from "./play";
+
+export function getSoloLeaderboard(date?: string, cookie?: string): Promise<SoloLeaderboard> {
+  const qs = date ? `?date=${encodeURIComponent(date)}` : "";
+  return apiFetchData<SoloLeaderboard>(`/play/solo/leaderboard${qs}`, { cookie });
+}
+
+export function getSoloMyStats(cookie?: string): Promise<SoloMyStats> {
+  return apiFetchData<SoloMyStats>("/play/solo/me/stats", { cookie });
+}
