@@ -8,6 +8,7 @@ interface Props {
 
 const NAV = [
   { href: "/",       label: "Home",   match: (p: string) => p === "/" },
+  { href: "/play",   label: "Play",   match: (p: string) => p.startsWith("/play") },
   { href: "/groups", label: "Groups", match: (p: string) => p.startsWith("/groups") || p.startsWith("/g/") },
 ];
 
