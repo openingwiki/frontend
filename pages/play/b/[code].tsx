@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import Layout from "@/components/Layout";
-import { SOLO, Eyebrow } from "@/components/solo/atoms";
+import { SOLO, Eyebrow, Waveform } from "@/components/solo/atoms";
 import { loadSession } from "@/lib/session";
 import {
   pvpClient,
@@ -694,8 +694,11 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
       </div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 40px 30px", gap: 24 }}>
         <div style={{ width: "100%", maxWidth: 720, aspectRatio: "16 / 9", background: `radial-gradient(ellipse at center, #1d1929 0%, #0c0a14 80%)`, borderRadius: 10, border: `1px solid ${SOLO.line2}`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: 14, left: 14, fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg3, background: "rgba(0,0,0,.4)", padding: "5px 9px", borderRadius: 4 }}>
+          <div style={{ position: "absolute", top: 14, left: 14, fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg3, background: "rgba(0,0,0,.4)", padding: "5px 9px", borderRadius: 4, zIndex: 1 }}>
             ● Audio only · {secsLeft.toFixed(1)}s left
+          </div>
+          <div style={{ width: "100%" }}>
+            <Waveform played={pct} />
           </div>
         </div>
         <div style={{ position: "relative", width: "100%", maxWidth: 720 }}>
