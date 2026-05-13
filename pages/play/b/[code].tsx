@@ -81,6 +81,12 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
     ? { kind: "error", message: "This match has already ended." }
     : { kind: "lobby" });
   const [socketStatus, setSocketStatus] = useState<"connecting" | "open" | "closed">("connecting");
+  // Running score across the whole match, keyed by user_id. Updated
+  // on every round.end and the match.end frame so the in-match HUD
+  // can keep showing the latest score during the playing phase
+  // (round.start carries no score field — without this the HUD would
+  // reset to 0–0 the moment a new round started).
+  const [score, setScore] = useState<Record<string, number>>({});
   const sockRef = useRef<PvPSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -172,6 +178,7 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       }
       case "round.end": {
         const d = f.data as RoundEndData;
+        if (d.score) setScore(d.score);
         setPhase((p) => p.kind === "playing" || p.kind === "reveal"
           ? { kind: "round-end", result: d, round: p.kind === "playing" ? p.round : (p as any).round, nextAt: Date.now() + ROUND_END_HOLD_MS }
           : p);
@@ -182,6 +189,7 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       }
       case "match.end": {
         const d = f.data as MatchEndData;
+        if (d.final_score) setScore(d.final_score);
         setPhase({ kind: "ended", result: d, winner: d.winner_user_id ?? null });
         break;
       }
@@ -330,7 +338,7 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
           <CountdownView startsAtMs={phase.startsAtMs} />
         )}
         {phase.kind === "reveal" && (
-          <RevealView mode={phase.round.mode} countdownMs={phase.countdownMs} view={view} />
+          <RevealView mode={phase.round.mode} countdownMs={phase.countdownMs} view={view} score={score} />
         )}
         {phase.kind === "playing" && (
           <PlayingView
@@ -338,6 +346,7 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
             round={phase.round}
             playedMs={phase.playedMs}
             meID={user.id}
+            score={score}
             onSubmit={(opening_id) => {
               sockRef.current?.submitAnswer(phase.round.round_id, opening_id, Date.now());
             }}
@@ -581,10 +590,10 @@ function CountdownView({ startsAtMs }: { startsAtMs: number }) {
   );
 }
 
-function RevealView({ mode, countdownMs, view }: { mode: string; countdownMs: number; view: PvPMatchView }) {
+function RevealView({ mode, countdownMs, view, score }: { mode: string; countdownMs: number; view: PvPMatchView; score: Record<string, number> }) {
   return (
     <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
-      <MatchHud view={view} />
+      <MatchHud view={view} scoreOverride={score} />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "80px 40px" }}>
         <Eyebrow>Next round · listen carefully</Eyebrow>
         <h1 style={{ margin: "20px 0 0", fontWeight: 900, fontSize: 160, letterSpacing: "-0.06em", lineHeight: 0.9, color: SOLO.accent, textShadow: `0 0 60px ${SOLO.accent}55` }}>
@@ -636,8 +645,9 @@ function MatchHud({ view, scoreOverride }: { view: PvPMatchView; scoreOverride?:
   );
 }
 
-function PlayingView({ view, round, playedMs, meID, onSubmit, onTyping }: {
+function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }: {
   view: PvPMatchView; round: RoundStartData; playedMs: number; meID: string;
+  score: Record<string, number>;
   onSubmit: (opening_id: string) => void; onTyping: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -678,7 +688,7 @@ function PlayingView({ view, round, playedMs, meID, onSubmit, onTyping }: {
 
   return (
     <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
-      <MatchHud view={view} />
+      <MatchHud view={view} scoreOverride={score} />
       <div style={{ height: 3, background: SOLO.line, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, right: `${(1 - pct) * 100}%`, background: secsLeft < 5 ? SOLO.danger : SOLO.accent, boxShadow: `0 0 14px ${secsLeft < 5 ? SOLO.danger : SOLO.accent}`, transition: "right .15s linear" }} />
       </div>
@@ -768,6 +778,9 @@ function MatchEndView({ result, view, meID, onRematch }: { result: MatchEndData;
   const opp = view.players.find((p) => p.user_id !== meID);
   const myScore = result.final_score[meID] ?? 0;
   const oppScore = opp ? (result.final_score[opp.user_id] ?? 0) : 0;
+  // Backend currently sends rounds: null. Treat as empty so the
+  // end-screen renders the score + actions even without the timeline.
+  const rounds = result.rounds ?? [];
   return (
     <div style={{ maxWidth: 1120, margin: "0 auto", padding: "48px 40px 64px" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 28, paddingBottom: 28, borderBottom: `1px solid ${SOLO.line}` }}>
@@ -780,7 +793,7 @@ function MatchEndView({ result, view, meID, onRematch }: { result: MatchEndData;
           </h1>
           {opp && (
             <p style={{ marginTop: 14, color: SOLO.fg2, fontSize: 15, maxWidth: 520 }}>
-              {myScore}–{oppScore} {youWon ? "over" : "against"} <span style={{ color: SOLO.accent, fontWeight: 600 }}>{opp.display_name}</span> · {result.rounds.length} rounds.
+              {myScore}–{oppScore} {youWon ? "over" : "against"} <span style={{ color: SOLO.accent, fontWeight: 600 }}>{opp.display_name}</span>{rounds.length > 0 ? ` · ${rounds.length} rounds.` : "."}
             </p>
           )}
         </div>
@@ -792,12 +805,13 @@ function MatchEndView({ result, view, meID, onRematch }: { result: MatchEndData;
       </div>
 
       {/* Round timeline */}
+      {rounds.length > 0 && (
       <div style={{ marginTop: 32, padding: "22px 24px", background: SOLO.bg2, border: `1px solid ${SOLO.line}`, borderRadius: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, letterSpacing: "0.14em", textTransform: "uppercase" }}>
           <span>Round-by-round</span>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          {result.rounds.map((r) => {
+          {rounds.map((r) => {
             const youW = r.winner_user_id === meID;
             const ns = r.no_score;
             return (
@@ -814,6 +828,7 @@ function MatchEndView({ result, view, meID, onRematch }: { result: MatchEndData;
           })}
         </div>
       </div>
+      )}
 
       <div style={{ marginTop: 32, paddingTop: 18, borderTop: `1px solid ${SOLO.line}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
         <Link href="/play" style={{ ...lobbyBtn(SOLO.fg2, "transparent"), textDecoration: "none" }}>Back to play</Link>
