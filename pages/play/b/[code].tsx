@@ -799,6 +799,29 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
   const oppResp = opp ? result.responses?.[opp.user_id] : undefined;
   const op = result.correct_opening;
 
+  // Fallback cover fetch — the round.end frame *should* carry
+  // anime_cover_url (set by match.go from the storage URL builder),
+  // but if it's missing (older backend, anime row with no cover,
+  // brief deploy lag) we want the card to still show the cover
+  // rather than the striped placeholder. /api/v1/openings/{id}
+  // returns the full openingDetail with anime.cover_image_url.
+  const [fallbackCover, setFallbackCover] = useState<string | null>(null);
+  useEffect(() => {
+    setFallbackCover(null);
+    if (!op?.id || op.anime_cover_url) return;
+    let cancelled = false;
+    fetch(`/api/v1/openings/${encodeURIComponent(op.id)}`, { credentials: "include" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((body) => {
+        if (cancelled) return;
+        const url = body?.data?.anime?.cover_image_url;
+        if (typeof url === "string" && url) setFallbackCover(url);
+      })
+      .catch(() => { /* placeholder stays */ });
+    return () => { cancelled = true; };
+  }, [op?.id, op?.anime_cover_url]);
+  const coverURL = op.anime_cover_url || fallbackCover;
+
   const eyebrow = noScore
     ? "No score · redraw"
     : youWon
@@ -839,13 +862,13 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
           <div style={{
             width: 200, height: 280, borderRadius: 8,
             background: SOLO.bg3, border: `1px solid ${SOLO.line2}`,
-            backgroundImage: op.anime_cover_url ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 14px, #221c33 14px 15px)`,
+            backgroundImage: coverURL ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 14px, #221c33 14px 15px)`,
             display: "grid", placeItems: "center", overflow: "hidden",
             fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, letterSpacing: "0.14em", textTransform: "uppercase",
           }}>
-            {op.anime_cover_url
+            {coverURL
               // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={op.anime_cover_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              ? <img src={coverURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
               : <>cover · 2:3</>}
           </div>
           <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
