@@ -222,7 +222,7 @@ function ErrorScreen({ message }: { message: string }) {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
       <Eyebrow color={SOLO.danger} dotColor={SOLO.danger}>Something went wrong</Eyebrow>
       <div style={{ color: SOLO.fg, fontSize: 18 }}>{message}</div>
-      <Link href="/play" style={{ color: SOLO.accent, fontFamily: SOLO.mono, fontSize: 13, textDecoration: "none" }}>back to hub →</Link>
+      <Link href="/play/endless" style={{ color: SOLO.accent, fontFamily: SOLO.mono, fontSize: 13, textDecoration: "none" }}>back to hub →</Link>
     </div>
   );
 }
@@ -545,7 +545,7 @@ function RunEndScreen({ run, summary, user }: { run: SoloRun; summary: SoloRunSu
                 <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
-            <Link href="/play" style={{
+            <Link href="/play/endless" style={{
               background: "transparent", border: `1px solid ${SOLO.line2}`, color: SOLO.fg2,
               borderRadius: 8, padding: "14px 22px", fontWeight: 500, fontSize: 14, textDecoration: "none",
             }}>Back to hub</Link>
