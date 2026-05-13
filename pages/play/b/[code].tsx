@@ -96,15 +96,35 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
   }, [code]);
 
   useEffect(() => {
+    let cancelled = false;
     const s = new PvPSocket(code);
     sockRef.current = s;
     const offFrame = s.onFrame((f) => handleFrame(f));
     const offStatus = s.onStatus((st) => setSocketStatus(st === "open" ? "open" : st === "closed" ? "closed" : "closed"));
-    s.connect().catch((err) => {
-      setPhase({ kind: "error", message: err?.message ?? "Failed to open match socket" });
-    });
+
+    // Opponents arrive at /play/b/<code> via an invite link without
+    // being seated yet — only the host is auto-seated on create.
+    // Mint-WS-token rejects unseated callers with not_in_match, so
+    // join first if needed, then open the socket.
+    (async () => {
+      try {
+        if (initial && initial.you_are === "guest") {
+          const joined = await pvpClient.join(code);
+          if (cancelled) return;
+          setView(joined);
+        }
+        if (cancelled) return;
+        await s.connect();
+      } catch (err: any) {
+        if (!cancelled) {
+          setPhase({ kind: "error", message: err?.message ?? "Failed to open match socket" });
+        }
+      }
+    })();
+
     const ping = setInterval(() => s.sendPing(), 15_000);
     return () => {
+      cancelled = true;
       clearInterval(ping);
       offFrame();
       offStatus();
