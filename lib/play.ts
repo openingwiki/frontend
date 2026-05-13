@@ -136,7 +136,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 export const playClient = {
   startRun: () => call<SoloStartResponse>("/solo/runs", { method: "POST" }),
   getRun: (id: string) => call<{ run: SoloRun; current_round?: SoloRound }>(`/solo/runs/${encodeURIComponent(id)}`),
-  submitAnswer: (id: string, body: { round_token: string; opening_id: string | null; client_response_ms: number }) =>
+  submitAnswer: (id: string, body: { round_token: string; anime_id: string | null; client_response_ms: number }) =>
     call<SoloAnswerResponse>(`/solo/runs/${encodeURIComponent(id)}/answer`, {
       method: "POST",
       body: JSON.stringify(body),

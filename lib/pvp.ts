@@ -92,7 +92,7 @@ export interface RoundEndData {
     string,
     {
       status: "answered" | "locked" | "timeout";
-      picked_opening_id?: string | null;
+      picked_anime_id?: string | null;
       was_correct?: boolean;
       response_ms?: number;
     }
@@ -229,8 +229,8 @@ export class PvPSocket {
     this.ws.send(JSON.stringify({ type, data }));
   }
 
-  submitAnswer(round_id: string, opening_id: string, client_submit_ms: number) {
-    this.send("answer.submit", { round_id, opening_id, client_submit_ms });
+  submitAnswer(round_id: string, anime_id: string, client_submit_ms: number) {
+    this.send("answer.submit", { round_id, anime_id, client_submit_ms });
   }
   sendTyping() {
     this.send("input.typing");

@@ -137,12 +137,12 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const submitAnswer = useCallback(async (p: Phase & { kind: "in-match" }, openingId: string | null) => {
+  const submitAnswer = useCallback(async (p: Phase & { kind: "in-match" }, animeId: string | null) => {
     setPhase({ kind: "starting" });
     try {
       const response = await playClient.submitAnswer(p.run.id, {
         round_token: p.round.round_token,
-        opening_id: openingId,
+        anime_id: animeId,
         client_response_ms: Date.now() - inMatchStart.current,
       });
       if (audioRef.current) {
@@ -175,7 +175,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
             round={phase.round}
             run={phase.run}
             playedMs={phase.clipPlayedMs}
-            onSubmit={(openingId) => submitAnswer(phase, openingId)}
+            onSubmit={(animeId) => submitAnswer(phase, animeId)}
           />
         )}
         {phase.kind === "reveal" && (
@@ -298,28 +298,27 @@ function ModeRevealScreen({ mode, countdownMs, run, round }: { mode: string; cou
   );
 }
 
-function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; run: SoloRun; playedMs: number; onSubmit: (openingId: string | null) => void }) {
+function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; run: SoloRun; playedMs: number; onSubmit: (animeId: string | null) => void }) {
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; anime: string; year: number | null }>>([]);
+  const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; year: number | null }>>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const queryRef = useRef(query);
   queryRef.current = query;
 
-  // Debounced autocomplete fetch — backend /api/v1/search returns
-  // openings + anime + singer; we project openings only for the
-  // suggestion list.
+  // Debounced autocomplete fetch — scoring is anime-based now, so we
+  // hit /api/v1/anime/search instead of filtering openings.
   useEffect(() => {
     if (query.trim().length < 2) { setSuggestions([]); return; }
     const handle = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/v1/search?q=${encodeURIComponent(query)}&types=opening&limit=8`, { credentials: "include" });
+        const res = await fetch(`/api/v1/anime/search?q=${encodeURIComponent(query)}&limit=8`, { credentials: "include" });
         if (!res.ok) return;
         const body = await res.json();
         if (queryRef.current !== query) return;
-        const items = (body?.data?.openings ?? []).slice(0, 8).map((o: any) => ({
-          id: o.id, title: o.title,
-          anime: o.anime?.name ?? "—",
-          year: o.anime?.year ?? null,
+        const items = (body?.data ?? []).slice(0, 8).map((a: any) => ({
+          id: a.id,
+          title: a.name || a.title_romaji,
+          year: a.year ?? null,
         }));
         setSuggestions(items);
         setActiveIdx(0);
@@ -369,7 +368,7 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
         </div>
         <Waveform played={pct} />
         <div style={{ textAlign: "center", marginTop: 22, fontFamily: SOLO.sans, fontSize: 14, color: SOLO.fg3 }}>
-          Type the opening you hear. ↵ to submit.
+          Name the anime. ↵ to submit.
         </div>
       </div>
       <div style={{ padding: "0 40px 32px", position: "relative" }}>
@@ -381,7 +380,7 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
             boxShadow: "0 -20px 50px -10px rgba(0,0,0,0.5)",
           }}>
             <div style={{ padding: "10px 16px", fontFamily: SOLO.mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: SOLO.fg3, borderBottom: `1px solid ${SOLO.line}` }}>
-              Matches by song · anime
+              Anime matches
             </div>
             {suggestions.map((s, i) => (
               <div
@@ -403,7 +402,7 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: SOLO.sans, fontWeight: 600, fontSize: 14, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
                   <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>
-                    {s.anime}{s.year ? ` · ${s.year}` : ""}
+                    {s.year ? `${s.year}` : "—"}
                   </div>
                 </div>
                 {i === activeIdx && (
@@ -428,7 +427,7 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKey}
-            placeholder="Start typing the song or anime…"
+            placeholder="Type the anime…"
             style={{
               flex: 1, fontSize: 18, fontWeight: 500, color: SOLO.fg,
               letterSpacing: "-0.01em", fontFamily: SOLO.sans,
