@@ -8,9 +8,10 @@ import Pagination from "@/components/Pagination";
 import GroupsPanel from "@/components/GroupsPanel";
 import AuthCard from "@/components/AuthCard";
 import SubmitCard from "@/components/SubmitCard";
+import ContributorsPanel from "@/components/ContributorsPanel";
 
-import { getKindCounts, listMyGroups, listOpenings } from "@/lib/api";
-import type { KindCounts } from "@/lib/api";
+import { getKindCounts, getSubmissionLeaderboard, listMyGroups, listOpenings } from "@/lib/api";
+import type { ContributorLeaderboard, KindCounts } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import { mockGroups, mockOpenings } from "@/lib/mock";
 import type {
@@ -27,6 +28,7 @@ interface Props {
   page: OpeningPage;
   groups: Group[];
   kindCounts: KindCounts;
+  contributors: ContributorLeaderboard | null;
   q: string;
   sort: SortKey;
   kind: TrackKind;
@@ -61,6 +63,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   let openingsPage: OpeningPage;
   let kindCounts: KindCounts = { opening: 0, ending: 0, ost: 0 };
   let groups: Group[] = [];
+  let contributors: ContributorLeaderboard | null = null;
   let apiOnline = true;
 
   try {
@@ -71,6 +74,9 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     if (session.user) {
       groups = session.mockGroups ?? await listMyGroups(session.cookie).catch(() => []);
     }
+    // Contributors widget is a soft dependency — the page still renders
+    // if the leaderboard endpoint fails for any reason.
+    contributors = await getSubmissionLeaderboard("week", session.cookie).catch(() => null);
   } catch {
     apiOnline = false;
     openingsPage = mockOpenings();
@@ -85,6 +91,7 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
       page: openingsPage,
       groups,
       kindCounts,
+      contributors,
       q,
       sort,
       kind,
@@ -105,6 +112,7 @@ export default function HomePage({
   page,
   groups,
   kindCounts,
+  contributors,
   q,
   sort,
   kind,
@@ -162,6 +170,7 @@ export default function HomePage({
 
           <aside className="side">
             {user ? <GroupsPanel groups={groups} /> : <AuthCard />}
+            <ContributorsPanel initial={contributors} meUserId={user?.id ?? null} />
             <SubmitCard authed={!!user} />
           </aside>
         </div>
