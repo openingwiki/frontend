@@ -6,6 +6,7 @@ import Layout from "@/components/Layout";
 import { getMySubmissions } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import type { MySubmissionItem, MySubmissionsResponse, SubmissionStatus, User } from "@/lib/types";
+import { youtubeThumbnail } from "@/lib/youtube";
 
 interface Props {
   user: User;
@@ -238,7 +239,20 @@ function renderSubMeta(item: MySubmissionItem, when: string) {
 
 function Thumb({ item }: { item: MySubmissionItem }) {
   if (item.type === "opening") {
-    return <div className="ms-thumb"><div className="ms-yt" /></div>;
+    // Pull the preview straight from YouTube's CDN — no API key needed,
+    // and the URL is already validated server-side, so a bad submission
+    // can't render a broken image (youtubeThumbnail returns null).
+    const preview = item.youtube_url ? youtubeThumbnail(item.youtube_url) : null;
+    return (
+      <div className="ms-thumb">
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt="" loading="lazy" />
+        ) : (
+          <div className="ms-yt" />
+        )}
+      </div>
+    );
   }
   if (item.type === "anime") {
     return (
