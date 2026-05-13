@@ -476,10 +476,15 @@ function RevealScreen({ result, run }: { result: SoloAnswerResponse; run: SoloRu
           <div style={{
             width: 200, height: 280, borderRadius: 8, background: SOLO.bg3,
             border: `1px solid ${SOLO.line2}`,
-            backgroundImage: `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 14px, #221c33 14px 15px)`,
-            display: "grid", placeItems: "center",
+            backgroundImage: op?.anime?.cover_image_url ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 14px, #221c33 14px 15px)`,
+            display: "grid", placeItems: "center", overflow: "hidden",
             fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, letterSpacing: "0.14em", textTransform: "uppercase",
-          }}>cover · 2:3</div>
+          }}>
+            {op?.anime?.cover_image_url
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={op.anime.cover_image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              : <>cover · 2:3</>}
+          </div>
           <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
             <div style={{ fontFamily: SOLO.mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: correct ? SOLO.ok : SOLO.danger, marginBottom: 10 }}>
               {correct ? `✓ ${op?.title ?? "—"}` : "✕ The answer was"}

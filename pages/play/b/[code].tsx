@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import Layout from "@/components/Layout";
-import { SOLO, Eyebrow, Waveform } from "@/components/solo/atoms";
+import { SOLO, Eyebrow, TimerBar, Waveform } from "@/components/solo/atoms";
 import { loadSession } from "@/lib/session";
 import {
   pvpClient,
@@ -307,14 +307,6 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       setPhase({ kind: "error", message: err?.message ?? "Failed to cancel" });
     }
   };
-  const handleRematch = async () => {
-    try {
-      const next = await pvpClient.rematch(code);
-      router.push(`/play/b/${next.match.room_code}`);
-    } catch (err: any) {
-      setPhase({ kind: "error", message: err?.message ?? "Failed to rematch" });
-    }
-  };
 
   if (!view) {
     return (
@@ -370,7 +362,6 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
             view={view}
             meID={user.id}
             roundResults={roundResults}
-            onRematch={handleRematch}
           />
         )}
         {phase.kind === "disconnected" && (
@@ -700,60 +691,91 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
   const pct = Math.min(1, playedMs / round.clip_duration_ms);
   const secsLeft = Math.max(0, (round.clip_duration_ms - playedMs) / 1000);
 
+  // Mirrors Solo's InMatchScreen layout — full-width waveform stage
+  // with the giant timer top-right, edge-to-edge accent input at the
+  // bottom, suggestions float above it.
   return (
     <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
       <MatchHud view={view} scoreOverride={score} />
-      <div style={{ height: 3, background: SOLO.line, position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", inset: 0, right: `${(1 - pct) * 100}%`, background: secsLeft < 5 ? SOLO.danger : SOLO.accent, boxShadow: `0 0 14px ${secsLeft < 5 ? SOLO.danger : SOLO.accent}`, transition: "right .15s linear" }} />
-      </div>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 40px 30px", gap: 24 }}>
-        <div style={{ width: "100%", maxWidth: 720, aspectRatio: "16 / 9", background: `radial-gradient(ellipse at center, #1d1929 0%, #0c0a14 80%)`, borderRadius: 10, border: `1px solid ${SOLO.line2}`, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", top: 14, left: 14, fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg3, background: "rgba(0,0,0,.4)", padding: "5px 9px", borderRadius: 4, zIndex: 1 }}>
-            ● Audio only · {secsLeft.toFixed(1)}s left
-          </div>
-          <div style={{ width: "100%" }}>
-            <Waveform played={pct} />
-          </div>
+      <TimerBar pct={pct} danger={secsLeft < 5} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 0 30px", position: "relative" }}>
+        <div style={{
+          position: "absolute", top: 20, right: 40,
+          fontFamily: SOLO.mono, fontSize: 56, fontWeight: 500,
+          letterSpacing: "-0.04em", color: secsLeft < 5 ? SOLO.danger : SOLO.fg, lineHeight: 1,
+        }}>
+          {secsLeft.toFixed(1)}<span style={{ color: SOLO.fg4, fontSize: 32 }}>s</span>
         </div>
-        <div style={{ position: "relative", width: "100%", maxWidth: 720 }}>
-          {suggestions.length > 0 && (
-            <div style={{ position: "absolute", bottom: "100%", left: 0, right: 0, background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 10, marginBottom: 8, overflow: "hidden", boxShadow: "0 -20px 50px -10px rgba(0,0,0,0.5)" }}>
-              {suggestions.map((s, i) => (
-                <div key={s.id} onMouseEnter={() => setActiveIdx(i)} onClick={() => onSubmit(s.id)} style={{
-                  display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
-                  background: i === activeIdx ? SOLO.bg3 : "transparent",
-                  borderLeft: i === activeIdx ? `2px solid ${SOLO.accent}` : "2px solid transparent",
-                  cursor: "pointer",
-                }}>
-                  <div style={{
-                    width: 38, height: 52, borderRadius: 4,
-                    border: `1px solid ${SOLO.line}`, flexShrink: 0, overflow: "hidden",
-                    background: s.cover ? "transparent" : SOLO.bg2,
-                    backgroundImage: s.cover ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 6px, ${SOLO.bg2} 6px 7px)`,
-                  }}>
-                    {s.cover && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={s.cover} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    )}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
-                    <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>{s.year ?? "—"}</div>
-                  </div>
-                  {i === activeIdx && <span style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "2px 6px", borderRadius: 3 }}>↵</span>}
-                </div>
-              ))}
+        <div style={{
+          position: "absolute", top: 28, left: 40,
+          fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3,
+          letterSpacing: "0.14em", textTransform: "uppercase",
+        }}>
+          clip · {(round.clip_duration_ms / 1000).toFixed(0)}s · audio
+        </div>
+        <Waveform played={pct} />
+        <div style={{ textAlign: "center", marginTop: 22, fontFamily: SOLO.sans, fontSize: 14, color: SOLO.fg3 }}>
+          Name the anime. ↵ to submit.
+        </div>
+      </div>
+      <div style={{ padding: "0 40px 32px", position: "relative" }}>
+        {suggestions.length > 0 && (
+          <div style={{
+            position: "absolute", bottom: "100%", left: 40, right: 40,
+            background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 10,
+            marginBottom: 8, overflow: "hidden",
+            boxShadow: "0 -20px 50px -10px rgba(0,0,0,0.5)",
+          }}>
+            <div style={{ padding: "10px 16px", fontFamily: SOLO.mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: SOLO.fg3, borderBottom: `1px solid ${SOLO.line}` }}>
+              Anime matches
             </div>
-          )}
-          <div style={{ display: "flex", alignItems: "center", gap: 14, background: SOLO.bg2, border: `1.5px solid ${SOLO.accent}`, borderRadius: 10, padding: "16px 20px", boxShadow: `0 0 0 4px ${SOLO.accent}11` }}>
-            <span style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.accent, letterSpacing: "0.16em", textTransform: "uppercase" }}>Anime</span>
-            <input
-              autoFocus value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKey}
-              placeholder="Type the anime title…"
-              style={{ flex: 1, background: "transparent", border: 0, outline: 0, color: SOLO.fg, fontSize: 18, fontWeight: 500, fontFamily: SOLO.sans }}
-            />
-            <span style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "3px 8px", borderRadius: 4 }}>↵ Enter</span>
+            {suggestions.map((s, i) => (
+              <div key={s.id} onMouseEnter={() => setActiveIdx(i)} onClick={() => onSubmit(s.id)} style={{
+                display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
+                background: i === activeIdx ? SOLO.bg3 : "transparent",
+                borderLeft: i === activeIdx ? `2px solid ${SOLO.accent}` : "2px solid transparent",
+                cursor: "pointer",
+              }}>
+                <div style={{
+                  width: 38, height: 52, borderRadius: 4,
+                  border: `1px solid ${SOLO.line}`, flexShrink: 0, overflow: "hidden",
+                  background: s.cover ? "transparent" : SOLO.bg2,
+                  backgroundImage: s.cover ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 6px, ${SOLO.bg2} 6px 7px)`,
+                }}>
+                  {s.cover && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.cover} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
+                  <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>{s.year ?? "—"}</div>
+                </div>
+                {i === activeIdx && <span style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "2px 6px", borderRadius: 3 }}>↵</span>}
+              </div>
+            ))}
           </div>
+        )}
+        <div style={{
+          background: SOLO.bg2, border: `1px solid ${SOLO.accent}`,
+          borderRadius: 10, padding: "16px 18px",
+          boxShadow: `0 0 0 4px ${SOLO.accent}22, 0 -20px 60px -20px ${SOLO.accent}22`,
+          display: "flex", alignItems: "center", gap: 14,
+        }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ color: SOLO.accent, flexShrink: 0 }} aria-hidden>
+            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+            <path d="M20 20l-3-3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <input
+            autoFocus value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKey}
+            placeholder="Type the anime…"
+            style={{
+              flex: 1, fontSize: 18, fontWeight: 500, color: SOLO.fg,
+              letterSpacing: "-0.01em", fontFamily: SOLO.sans,
+              background: "transparent", border: "none", outline: "none",
+            }}
+          />
+          <span style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "3px 8px", borderRadius: 4 }}>↵ submit</span>
         </div>
       </div>
     </div>
@@ -763,36 +785,95 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
 function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPMatchView; meID: string }) {
   const winner = result.winner_user_id;
   const youWon = winner === meID;
+  const oppWon = !!winner && !youWon;
   const noScore = result.no_score;
+  // Solo's reveal-card visual, adapted for 1v1: green tint when you
+  // win the round, red when the opponent grabs it, amber when nobody
+  // does. Eyebrow says *who* got it so the player doesn't have to
+  // read three labels to find out.
   const accent = noScore ? SOLO.warn : youWon ? SOLO.ok : SOLO.danger;
-  const headline = noScore ? "Tough one." : youWon ? "+1 round." : "−1 round.";
+  const me = view.players.find((p) => p.user_id === meID);
+  const opp = view.players.find((p) => p.user_id !== meID);
+  const oppName = opp?.display_name ?? "Opponent";
+  const myResp = result.responses?.[meID];
+  const oppResp = opp ? result.responses?.[opp.user_id] : undefined;
+  const op = result.correct_opening;
+
+  const eyebrow = noScore
+    ? "No score · redraw"
+    : youWon
+      ? `Correct · ${myResp?.response_ms ? (myResp.response_ms / 1000).toFixed(2) + "s" : "—"}`
+      : `${oppName} got it · ${oppResp?.response_ms ? (oppResp.response_ms / 1000).toFixed(2) + "s" : "—"}`;
+
+  const headline = noScore
+    ? "Nobody had it."
+    : youWon
+      ? "Round to you."
+      : <>Round to <span style={{ color: SOLO.accent }}>{oppName}.</span></>;
+
+  const subLead = noScore
+    ? "The answer was"
+    : youWon
+      ? "✓ You named it"
+      : `✕ ${oppName} got there first`;
+
   return (
-    <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column", position: "relative" }}>
       <MatchHud view={view} scoreOverride={result.score} />
-      <div style={{ flex: 1, padding: "36px 40px 28px", display: "flex", flexDirection: "column", gap: 22, justifyContent: "center" }}>
-        <div>
-          <Eyebrow color={accent} dotColor={accent}>
-            {noScore ? "No score · redraw" : youWon ? "You got it" : "Opponent got it"}
-          </Eyebrow>
-          <h2 style={{ margin: "10px 0 4px", fontWeight: 800, fontSize: 54, letterSpacing: "-0.04em", color: accent }}>{headline}</h2>
-          <div style={{ fontFamily: SOLO.mono, fontSize: 13, color: SOLO.fg3 }}>
-            Score · <span style={{ color: SOLO.fg }}>{result.score[Object.keys(result.score)[0]]} – {result.score[Object.keys(result.score)[1]]}</span>
-          </div>
+      <div style={{ position: "absolute", top: 60, left: 0, right: 0, bottom: 0, background: noScore ? `${SOLO.warn}08` : youWon ? `${SOLO.ok}10` : `${SOLO.danger}0d`, pointerEvents: "none" }} />
+      <TimerBar pct={0.4} danger={oppWon} />
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
+        <div style={{ position: "absolute", top: 30, left: 40 }}>
+          <Eyebrow color={accent} dotColor={accent}>{eyebrow}</Eyebrow>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 24, padding: "22px 24px", background: SOLO.bg2, border: `1px solid ${accent}33`, borderRadius: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.accent, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>
-              Round · the answer
+        <div style={{
+          display: "grid", gridTemplateColumns: "auto 1fr", gap: 40, maxWidth: 880,
+          background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 14,
+          padding: 36, position: "relative", overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute", inset: -1, borderRadius: 14, pointerEvents: "none",
+            border: `1px solid ${accent}55`,
+            boxShadow: `0 0 40px ${accent}33, inset 0 0 60px ${accent}0a`,
+          }} />
+          <div style={{
+            width: 200, height: 280, borderRadius: 8,
+            background: SOLO.bg3, border: `1px solid ${SOLO.line2}`,
+            backgroundImage: op.anime_cover_url ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 14px, #221c33 14px 15px)`,
+            display: "grid", placeItems: "center", overflow: "hidden",
+            fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, letterSpacing: "0.14em", textTransform: "uppercase",
+          }}>
+            {op.anime_cover_url
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={op.anime_cover_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              : <>cover · 2:3</>}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ fontFamily: SOLO.mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: accent, marginBottom: 10 }}>
+              {subLead}
             </div>
-            <h3 style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 24, letterSpacing: "-0.025em" }}>{result.correct_opening.anime_name}</h3>
-            <div style={{ fontFamily: SOLO.mono, fontSize: 12, color: SOLO.fg3 }}>
-              {result.correct_opening.title}{result.correct_opening.singer_name ? ` · ${result.correct_opening.singer_name}` : ""}{result.correct_opening.year ? ` · ${result.correct_opening.year}` : ""}
+            <h2 style={{ margin: 0, fontFamily: SOLO.sans, fontWeight: 800, fontSize: 56, letterSpacing: "-0.04em", lineHeight: 0.95, color: SOLO.fg }}>
+              {op.anime_name || "—"}
+            </h2>
+            <div style={{ fontFamily: SOLO.sans, fontSize: 17, color: SOLO.fg2, marginTop: 8 }}>
+              {op.title || "—"}{op.singer_name ? <> · <em style={{ fontStyle: "normal", color: SOLO.accent }}>{op.singer_name}</em></> : null}{op.year ? <> · {op.year}</> : null}
             </div>
-            {result.correct_opening.avg_rating ? (
-              <div style={{ marginTop: 8, fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg2 }}>
-                <span style={{ color: SOLO.warn, fontWeight: 500 }}>★ {result.correct_opening.avg_rating.toFixed(1)}</span> · {result.correct_opening.rating_count ?? 0} ratings
-              </div>
-            ) : null}
+            <div style={{ marginTop: 18, fontFamily: SOLO.sans, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: SOLO.fg }}>
+              {headline}
+            </div>
+            {/* Per-player verdict cells — the "if you fail, show the
+                other one is guessed" requirement is satisfied by the
+                opp cell turning green with their response time. */}
+            <div style={{ display: "flex", gap: 36, marginTop: 24, paddingTop: 22, borderTop: `1px dashed ${SOLO.line2}` }}>
+              <PlayerCell label="you" me name={me?.display_name ?? "you"} resp={myResp} />
+              <PlayerCell label="opp" name={oppName} resp={oppResp} />
+              {op.avg_rating ? (
+                <div>
+                  <div style={{ fontFamily: SOLO.mono, fontWeight: 500, fontSize: 24, color: SOLO.warn, letterSpacing: "-0.03em", lineHeight: 1 }}>★ {op.avg_rating.toFixed(1)}</div>
+                  <div style={{ fontFamily: SOLO.mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: SOLO.fg3, marginTop: 6 }}>community</div>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -800,7 +881,44 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
   );
 }
 
-function MatchEndView({ result, view, meID, roundResults, onRematch }: { result: MatchEndData; view: PvPMatchView; meID: string; roundResults: RoundEndData[]; onRematch: () => void }) {
+// PlayerCell — outcome at a glance for one player. Color follows the
+// player's own correctness (green = got it, red = wrong/timeout/locked,
+// neutral = no useful answer). Time shown when available.
+function PlayerCell({
+  label, name, resp, me,
+}: {
+  label: string;
+  name: string;
+  resp: { status: string; was_correct?: boolean; response_ms?: number } | undefined;
+  me?: boolean;
+}) {
+  const correct = !!resp?.was_correct;
+  const color = correct ? SOLO.ok : resp?.status === "answered" || resp?.status === "locked" || resp?.status === "timeout"
+    ? SOLO.danger
+    : SOLO.fg3;
+  const time = resp?.response_ms ? `${(resp.response_ms / 1000).toFixed(2)}s` : "—";
+  const verdict = resp?.status === "answered"
+    ? (correct ? "✓ correct" : "✕ wrong")
+    : resp?.status === "locked"
+      ? "locked out"
+      : resp?.status === "timeout"
+        ? "timed out"
+        : "no answer";
+  return (
+    <div>
+      <div style={{ fontFamily: SOLO.mono, fontWeight: 500, fontSize: 24, color, letterSpacing: "-0.03em", lineHeight: 1 }}>
+        {time}
+      </div>
+      <div style={{ fontFamily: SOLO.mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: SOLO.fg3, marginTop: 6 }}>
+        {me ? "you" : label}
+        <span style={{ color, marginLeft: 6 }}>· {verdict}</span>
+      </div>
+      {!me && <div style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, marginTop: 2 }}>{name}</div>}
+    </div>
+  );
+}
+
+function MatchEndView({ result, view, meID, roundResults }: { result: MatchEndData; view: PvPMatchView; meID: string; roundResults: RoundEndData[] }) {
   const youWon = result.winner_user_id === meID;
   const me = view.players.find((p) => p.user_id === meID);
   const opp = view.players.find((p) => p.user_id !== meID);
@@ -899,8 +1017,7 @@ function MatchEndView({ result, view, meID, roundResults, onRematch }: { result:
       )}
 
       <div style={{ marginTop: 32, paddingTop: 18, borderTop: `1px solid ${SOLO.line}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
-        <Link href="/play" style={{ ...lobbyBtn(SOLO.fg2, "transparent"), textDecoration: "none" }}>Back to play</Link>
-        <button onClick={onRematch} style={lobbyBtn(SOLO.bg, SOLO.accent, true)}>Rematch · same rules ↻</button>
+        <Link href="/play" style={{ ...lobbyBtn(SOLO.bg, SOLO.accent, true), textDecoration: "none" }}>Back to play</Link>
       </div>
     </div>
   );
