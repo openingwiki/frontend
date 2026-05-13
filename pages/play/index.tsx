@@ -137,6 +137,55 @@ export default function SoloHub({ user, modQueueCount, stats, leaderboard, apiOn
             </div>
           </section>
 
+          {/* PvP card */}
+          <section style={{
+            background: `linear-gradient(135deg, #1a1530 0%, #221831 60%, #2a1d3c 100%)`,
+            border: `1px solid ${SOLO.line2}`, borderRadius: 12, padding: 40,
+            position: "relative", overflow: "hidden", minHeight: 240, marginTop: 20,
+            display: "flex", flexDirection: "column",
+          }}>
+            <div style={{
+              position: "absolute", top: -80, right: -80, width: 380, height: 380, borderRadius: "50%",
+              background: `radial-gradient(circle, ${SOLO.accent}33 0%, transparent 70%)`, pointerEvents: "none",
+            }} />
+            <Eyebrow color={SOLO.accent} dotColor={SOLO.accent}>1v1 · race</Eyebrow>
+            <h2 style={{ margin: "14px 0 10px", fontWeight: 800, fontSize: 38, letterSpacing: "-0.035em", lineHeight: 1, maxWidth: 480 }}>
+              Challenge a <span style={{ color: SOLO.accent }}>friend.</span>
+            </h2>
+            <p style={{ margin: 0, color: SOLO.fg2, fontSize: 14, maxWidth: 480, lineHeight: 1.55 }}>
+              Two players, same clip, simultaneous. First to ten correct wins the match.
+            </p>
+            <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 20, fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, letterSpacing: "0.04em" }}>
+              <span><span style={{ color: SOLO.fg }}>FT10</span> · first to ten</span>
+              <span><span style={{ color: SOLO.fg }}>Audio</span> · song only</span>
+              <span><span style={{ color: SOLO.fg }}>Top 1000</span> · clip pool</span>
+            </div>
+            <div style={{ flex: 1, minHeight: 24 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 8 }}>
+              {user ? (
+                <Link href="/play/pvp/new" style={{
+                  background: SOLO.accent, color: SOLO.bg, border: "none", borderRadius: 8,
+                  padding: "14px 26px", fontWeight: 600, fontSize: 15, letterSpacing: "-0.01em",
+                  cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 10,
+                  textDecoration: "none", boxShadow: `0 0 30px ${SOLO.accent}55`,
+                }}>
+                  + Create battle
+                </Link>
+              ) : (
+                <Link href={`/login?next=${encodeURIComponent("/play/pvp/new")}`} style={{
+                  background: SOLO.accent, color: SOLO.bg, border: "none", borderRadius: 8,
+                  padding: "14px 26px", fontWeight: 600, fontSize: 15, textDecoration: "none",
+                  boxShadow: `0 0 30px ${SOLO.accent}55`,
+                }}>
+                  Log in to play
+                </Link>
+              )}
+              <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, lineHeight: 1.4 }}>
+                Invite by link<br />once the lobby is open
+              </div>
+            </div>
+          </section>
+
           <section style={{ display: "grid", gridTemplateColumns: stats ? "1fr 1.1fr" : "1fr", gap: 20, marginTop: 28 }}>
             {stats && (
               <div style={{ background: SOLO.bg2, border: `1px solid ${SOLO.line}`, borderRadius: 12, padding: 24 }}>
