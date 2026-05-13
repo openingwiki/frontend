@@ -222,7 +222,7 @@ function ErrorScreen({ message }: { message: string }) {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
       <Eyebrow color={SOLO.danger} dotColor={SOLO.danger}>Something went wrong</Eyebrow>
       <div style={{ color: SOLO.fg, fontSize: 18 }}>{message}</div>
-      <Link href="/play" style={{ color: SOLO.accent, fontFamily: SOLO.mono, fontSize: 13, textDecoration: "none" }}>back to hub →</Link>
+      <Link href="/play/endless" style={{ color: SOLO.accent, fontFamily: SOLO.mono, fontSize: 13, textDecoration: "none" }}>back to hub →</Link>
     </div>
   );
 }
@@ -300,7 +300,7 @@ function ModeRevealScreen({ mode, countdownMs, run, round }: { mode: string; cou
 
 function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; run: SoloRun; playedMs: number; onSubmit: (animeId: string | null) => void }) {
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; year: number | null }>>([]);
+  const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; year: number | null; cover: string | null }>>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const queryRef = useRef(query);
   queryRef.current = query;
@@ -319,6 +319,7 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
           id: a.id,
           title: a.name || a.title_romaji,
           year: a.year ?? null,
+          cover: a.cover_image_url ?? null,
         }));
         setSuggestions(items);
         setActiveIdx(0);
@@ -395,10 +396,17 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
                 }}
               >
                 <div style={{
-                  width: 38, height: 52, background: SOLO.bg2, borderRadius: 4,
+                  width: 38, height: 52, borderRadius: 4,
                   border: `1px solid ${SOLO.line}`, flexShrink: 0,
-                  backgroundImage: `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 6px, ${SOLO.bg2} 6px 7px)`,
-                }} />
+                  overflow: "hidden",
+                  background: s.cover ? "transparent" : SOLO.bg2,
+                  backgroundImage: s.cover ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 6px, ${SOLO.bg2} 6px 7px)`,
+                }}>
+                  {s.cover && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.cover} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  )}
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: SOLO.sans, fontWeight: 600, fontSize: 14, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
                   <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>
@@ -545,7 +553,7 @@ function RunEndScreen({ run, summary, user }: { run: SoloRun; summary: SoloRunSu
                 <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
-            <Link href="/play" style={{
+            <Link href="/play/endless" style={{
               background: "transparent", border: `1px solid ${SOLO.line2}`, color: SOLO.fg2,
               borderRadius: 8, padding: "14px 22px", fontWeight: 500, fontSize: 14, textDecoration: "none",
             }}>Back to hub</Link>
