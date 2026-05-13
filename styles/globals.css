@@ -2768,12 +2768,18 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 }
 .ms-sub:hover { border-color: var(--line-2); }
 .ms-sub-head {
-  display: grid; grid-template-columns: 160px 1fr auto; gap: 20px;
-  align-items: center; padding: 18px 20px;
+  display: grid;
+  /* `auto` lets each thumb pick its own width — opening is 16:9 at
+     260px, poster is 2:3 at 120px, round is 1:1 at 140px — instead
+     of forcing every kind into a fixed 160px column the way the
+     first cut did. */
+  grid-template-columns: auto 1fr auto;
+  gap: 22px;
+  align-items: center; padding: 20px;
 }
-.ms-thumb-wrap { display: grid; place-items: center; width: 160px; }
+.ms-thumb-wrap { display: grid; place-items: center; }
 .ms-thumb {
-  width: 160px; aspect-ratio: 16/9; border-radius: 6px;
+  width: 260px; aspect-ratio: 16/9; border-radius: 8px;
   background-image: repeating-linear-gradient(45deg, #1a1628 0 8px, #241e36 8px 9px);
   border: 1px solid var(--line-2);
   position: relative; overflow: hidden;
@@ -2781,10 +2787,10 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 }
 .ms-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ms-thumb.ms-thumb-poster {
-  aspect-ratio: 2/3; width: 80px;
+  aspect-ratio: 2/3; width: 120px;
 }
 .ms-thumb.ms-thumb-round {
-  aspect-ratio: 1/1; width: 80px; border-radius: 50%;
+  aspect-ratio: 1/1; width: 140px; border-radius: 50%;
   background-image: repeating-linear-gradient(60deg, #1a1628 0 8px, #2a2240 8px 9px);
 }
 .ms-yt {
@@ -2904,3 +2910,53 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 }
 .ms-empty h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -0.02em; }
 .ms-empty p { margin: 0 0 18px; color: var(--fg-3); font-family: var(--mono); font-size: 11px; }
+
+/* MOBILE — the desktop grid (thumb · meta · status) is too cramped
+   under ~720px. Stack into: thumb on top (full-width framed by the
+   card's padding), meta + status badge as a row below. Tighten
+   typography and let the filter bar wrap on its own. */
+@media (max-width: 720px) {
+  .ms-head {
+    flex-direction: column; align-items: flex-start; gap: 16px;
+    padding: 4px 0 22px;
+  }
+  .ms-h1 { font-size: 32px; }
+  .ms-head-right { width: 100%; }
+  .ms-head-right .btn { width: 100%; justify-content: center; }
+
+  .ms-filter-bar { gap: 12px; padding: 4px 0 20px; }
+  .ms-filter-bar .ms-spacer { display: none; }
+  .ms-sort { width: 100%; justify-content: space-between; }
+  .ms-sort select { flex: 1; max-width: 60%; }
+
+  .ms-sub-head {
+    grid-template-columns: 1fr;
+    gap: 14px; padding: 14px;
+  }
+  .ms-thumb-wrap { width: 100%; }
+  .ms-thumb {
+    width: 100%; max-width: none;
+    aspect-ratio: 16/9; border-radius: 8px;
+  }
+  .ms-thumb.ms-thumb-poster {
+    width: 96px; /* poster keeps its 2:3 — stretching it looks awful */
+    justify-self: start;
+  }
+  .ms-thumb.ms-thumb-round {
+    width: 96px; /* round avatars stay compact too */
+    justify-self: start;
+  }
+
+  /* The status badge is the third grid cell — leave it at the
+     bottom of the stacked card and align it to the start so it
+     reads next to the meta block, not floating right. */
+  .ms-sub-head > div:last-child { justify-self: start; }
+  .ms-meta-tags { display: flex; align-items: center; gap: 8px; }
+  .ms-sub-title { font-size: 16px; white-space: normal; }
+  .ms-sub-sub { font-size: 10px; gap: 6px; }
+
+  .ms-review-block, .ms-pending-note { padding: 14px; }
+  .ms-review-msg { font-size: 13px; }
+
+  .ms-crumb { padding: 20px 0 10px; flex-wrap: wrap; }
+}
