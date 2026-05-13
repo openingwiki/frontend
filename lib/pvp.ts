@@ -167,11 +167,21 @@ export const pvpClient = {
 // PvPSocket wraps the browser WebSocket with reconnect semantics and
 // a tiny event emitter. The match page wires its state machine to
 // `onFrame` and treats the socket as a black box otherwise.
+//
+// Reconnect strategy: on close (not user-initiated), mint a fresh
+// token and retry with exponential backoff (1s, 2s, 4s, 8s, then
+// capped). Tokens are single-shot and short-lived (30s), so we always
+// mint a new one rather than reusing the original. Ingress proxies
+// quietly drop idle WS connections; without reconnect the user would
+// silently miss every lobby.state and match.* frame that arrived
+// after the drop.
 export class PvPSocket {
   private ws: WebSocket | null = null;
   private closed = false;
   private listeners = new Set<(f: Frame) => void>();
   private statusListeners = new Set<(s: "open" | "closed" | "error") => void>();
+  private reconnectDelay = 1000;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private code: string) {}
 
@@ -183,10 +193,14 @@ export class PvPSocket {
     url.searchParams.set("room", this.code);
     const ws = new WebSocket(url.toString());
     this.ws = ws;
-    ws.onopen = () => this.fireStatus("open");
+    ws.onopen = () => {
+      this.reconnectDelay = 1000;
+      this.fireStatus("open");
+    };
     ws.onclose = () => {
       this.fireStatus("closed");
       this.ws = null;
+      if (!this.closed) this.scheduleReconnect();
     };
     ws.onerror = () => this.fireStatus("error");
     ws.onmessage = (e) => {
@@ -197,6 +211,17 @@ export class PvPSocket {
         /* ignore */
       }
     };
+  }
+
+  private scheduleReconnect() {
+    if (this.reconnectTimer || this.closed) return;
+    const delay = this.reconnectDelay;
+    this.reconnectDelay = Math.min(this.reconnectDelay * 2, 8000);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.closed) return;
+      this.connect().catch(() => this.scheduleReconnect());
+    }, delay);
   }
 
   send(type: string, data?: unknown): void {
@@ -225,6 +250,10 @@ export class PvPSocket {
 
   close(): void {
     this.closed = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.ws?.close();
     this.ws = null;
   }

@@ -95,6 +95,17 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
     }
   }, [code]);
 
+  // Lobby-phase poll. WS lobby.state is authoritative when it arrives
+  // but ingress timeouts and brief network blips can drop frames
+  // silently — without a fallback, one player toggling ready never
+  // shows up on the other player's screen. Poll only while we're in
+  // the lobby (cheap; stops the moment the match transitions out).
+  useEffect(() => {
+    if (phase.kind !== "lobby") return;
+    const t = setInterval(refreshView, 2500);
+    return () => clearInterval(t);
+  }, [phase.kind, refreshView]);
+
   useEffect(() => {
     let cancelled = false;
     const s = new PvPSocket(code);
