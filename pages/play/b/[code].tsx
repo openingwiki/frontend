@@ -355,8 +355,8 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
             playedMs={phase.playedMs}
             meID={user.id}
             score={score}
-            onSubmit={(opening_id) => {
-              sockRef.current?.submitAnswer(phase.round.round_id, opening_id, Date.now());
+            onSubmit={(anime_id) => {
+              sockRef.current?.submitAnswer(phase.round.round_id, anime_id, Date.now());
             }}
             onTyping={() => sockRef.current?.sendTyping()}
           />
@@ -657,10 +657,12 @@ function MatchHud({ view, scoreOverride }: { view: PvPMatchView; scoreOverride?:
 function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }: {
   view: PvPMatchView; round: RoundStartData; playedMs: number; meID: string;
   score: Record<string, number>;
-  onSubmit: (opening_id: string) => void; onTyping: () => void;
+  onSubmit: (anime_id: string) => void; onTyping: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; anime: string }>>([]);
+  // Anime autocomplete — scoring is anime-based now, so the user
+  // picks an anime and any of its openings counts as correct.
+  const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; year: number | null }>>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const queryRef = useRef(query);
   queryRef.current = query;
@@ -670,12 +672,14 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
     onTyping();
     const handle = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/v1/search?q=${encodeURIComponent(query)}&types=opening&limit=8`, { credentials: "include" });
+        const res = await fetch(`/api/v1/anime/search?q=${encodeURIComponent(query)}&limit=8`, { credentials: "include" });
         if (!res.ok) return;
         const body = await res.json();
         if (queryRef.current !== query) return;
-        const items = (body?.data?.openings ?? []).slice(0, 8).map((o: any) => ({
-          id: o.id, title: o.title, anime: o.anime_name ?? o.anime?.name ?? "—",
+        const items = (body?.data ?? []).slice(0, 8).map((a: any) => ({
+          id: a.id,
+          title: a.name || a.title_romaji,
+          year: a.year ?? null,
         }));
         setSuggestions(items);
         setActiveIdx(0);
@@ -722,7 +726,7 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
                 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 14, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
-                    <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>{s.anime}</div>
+                    <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>{s.year ?? "—"}</div>
                   </div>
                   {i === activeIdx && <span style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "2px 6px", borderRadius: 3 }}>↵</span>}
                 </div>
@@ -730,7 +734,7 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
             </div>
           )}
           <div style={{ display: "flex", alignItems: "center", gap: 14, background: SOLO.bg2, border: `1.5px solid ${SOLO.accent}`, borderRadius: 10, padding: "16px 20px", boxShadow: `0 0 0 4px ${SOLO.accent}11` }}>
-            <span style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.accent, letterSpacing: "0.16em", textTransform: "uppercase" }}>Title</span>
+            <span style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.accent, letterSpacing: "0.16em", textTransform: "uppercase" }}>Anime</span>
             <input
               autoFocus value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKey}
               placeholder="Type the anime title…"
