@@ -35,7 +35,7 @@ export interface SoloRound {
 // sees on the detail page, plus the gameplay-shaped stats (your time,
 // avg player time, score delta).
 export interface SoloOpening extends Opening {
-  anime: Pick<Anime, "id" | "name"> & { title_romaji?: string; year?: number };
+  anime: Pick<Anime, "id" | "name"> & { title_romaji?: string; year?: number; cover_image_url?: string | null };
   singer: Pick<Singer, "id" | "name">;
 }
 

@@ -77,6 +77,7 @@ export interface OpeningReveal {
   id: string;
   title: string;
   anime_name: string;
+  anime_cover_url?: string;
   singer_name: string;
   year?: number;
   avg_rating?: number;

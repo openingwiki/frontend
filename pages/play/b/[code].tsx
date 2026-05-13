@@ -780,6 +780,15 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 24, padding: "22px 24px", background: SOLO.bg2, border: `1px solid ${accent}33`, borderRadius: 12 }}>
+          {result.correct_opening.anime_cover_url && (
+            <div style={{
+              width: 96, aspectRatio: "2/3", borderRadius: 6, overflow: "hidden",
+              border: `1px solid ${SOLO.line2}`, flexShrink: 0, background: SOLO.bg3,
+            }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={result.correct_opening.anime_cover_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            </div>
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.accent, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>
               Round · the answer
