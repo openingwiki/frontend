@@ -662,7 +662,7 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
   const [query, setQuery] = useState("");
   // Anime autocomplete — scoring is anime-based now, so the user
   // picks an anime and any of its openings counts as correct.
-  const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; year: number | null }>>([]);
+  const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; year: number | null; cover: string | null }>>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const queryRef = useRef(query);
   queryRef.current = query;
@@ -680,6 +680,7 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
           id: a.id,
           title: a.name || a.title_romaji,
           year: a.year ?? null,
+          cover: a.cover_image_url ?? null,
         }));
         setSuggestions(items);
         setActiveIdx(0);
@@ -719,11 +720,22 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
             <div style={{ position: "absolute", bottom: "100%", left: 0, right: 0, background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 10, marginBottom: 8, overflow: "hidden", boxShadow: "0 -20px 50px -10px rgba(0,0,0,0.5)" }}>
               {suggestions.map((s, i) => (
                 <div key={s.id} onMouseEnter={() => setActiveIdx(i)} onClick={() => onSubmit(s.id)} style={{
-                  display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+                  display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
                   background: i === activeIdx ? SOLO.bg3 : "transparent",
                   borderLeft: i === activeIdx ? `2px solid ${SOLO.accent}` : "2px solid transparent",
                   cursor: "pointer",
                 }}>
+                  <div style={{
+                    width: 38, height: 52, borderRadius: 4,
+                    border: `1px solid ${SOLO.line}`, flexShrink: 0, overflow: "hidden",
+                    background: s.cover ? "transparent" : SOLO.bg2,
+                    backgroundImage: s.cover ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 6px, ${SOLO.bg2} 6px 7px)`,
+                  }}>
+                    {s.cover && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.cover} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    )}
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 14, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
                     <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>{s.year ?? "—"}</div>
