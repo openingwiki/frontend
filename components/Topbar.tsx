@@ -6,14 +6,26 @@ interface Props {
   user: User | null;
 }
 
-const NAV = [
+type NavItem = { href: string; label: string; match: (p: string) => boolean };
+
+const BASE_NAV: NavItem[] = [
   { href: "/",       label: "Home",   match: (p: string) => p === "/" },
   { href: "/play",   label: "Play",   match: (p: string) => p.startsWith("/play") },
   { href: "/groups", label: "Groups", match: (p: string) => p.startsWith("/groups") || p.startsWith("/g/") },
 ];
 
+const ME_SUBMISSIONS_ITEM: NavItem = {
+  href: "/my-submissions",
+  label: "My submissions",
+  match: (p: string) => p.startsWith("/my-submissions"),
+};
+
 export default function Topbar({ user }: Props) {
   const { pathname } = useRouter();
+  // Slot "My submissions" between Play and Groups for authenticated
+  // users so it sits next to the other gameplay-adjacent entries
+  // rather than buried inside the avatar menu.
+  const nav = user ? [...BASE_NAV.slice(0, 2), ME_SUBMISSIONS_ITEM, ...BASE_NAV.slice(2)] : BASE_NAV;
 
   return (
     <header className="topbar">
@@ -24,7 +36,7 @@ export default function Topbar({ user }: Props) {
         </Link>
 
         <nav className="nav">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}

@@ -403,6 +403,10 @@ export function getKindCounts(cookie?: string): Promise<KindCounts> {
   }));
 }
 
+export function getMySubmissions(cookie?: string): Promise<import("./types").MySubmissionsResponse> {
+  return apiFetchData<import("./types").MySubmissionsResponse>("/me/submissions", { cookie });
+}
+
 export type ContributorRange = "week" | "all";
 
 export interface ContributorEntry {
