@@ -308,6 +308,20 @@ export interface ModerationItem {
   bio?: string | null;
 }
 
+// MySubmissionItem extends ModerationItem with the review trail. The
+// /api/v1/me/submissions endpoint returns these so the user-facing
+// "My submissions" page can render rejection feedback inline.
+export interface MySubmissionItem extends ModerationItem {
+  reviewed_at?: string;
+  rejection_reason?: string;
+}
+
+export interface MySubmissionsResponse {
+  items: MySubmissionItem[];
+  counts: Record<"all" | SubmissionStatus, number>;
+  type_counts: Record<"all" | ModerationItemType, number>;
+}
+
 export interface ModerationQueuePage {
   items: ModerationItem[];
   total: number;
