@@ -283,9 +283,9 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
   };
 
   const TYPE_OPTIONS = [
-    { value: "opening" as TrackKind, tag: "OP", cls: "op", name: "Opening", desc: "Intro sequence · ~90 sec · plays at the start of every episode" },
-    { value: "ending"  as TrackKind, tag: "ED", cls: "ed", name: "Ending",  desc: "Outro sequence · ~90 sec · plays at the end of every episode" },
-    { value: "ost"     as TrackKind, tag: "OST", cls: "ost", name: "OST / insert", desc: "Score, insert song, or character song · any length" },
+    { value: "opening" as TrackKind, tag: "OP", cls: "op", name: "Opening" },
+    { value: "ending"  as TrackKind, tag: "ED", cls: "ed", name: "Ending" },
+    { value: "ost"     as TrackKind, tag: "OST", cls: "ost", name: "OST / insert" },
   ];
 
   const titleLabel = kind === "ost" ? "Track title" : kind === "ending" ? "Ending title" : "Opening title";
@@ -312,7 +312,6 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
                   <span className="tp-radio" />
                 </div>
                 <div className="tp-name">{opt.name}</div>
-                <div className="tp-desc">{opt.desc}</div>
               </button>
             ))}
           </div>
