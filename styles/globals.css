@@ -407,6 +407,58 @@ input, select { font: inherit; color: inherit; }
 }
 .panel-foot a { color: var(--accent); }
 
+/* Contributors leaderboard — mirrors Home.html design tokens. */
+.lb-tabs {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.lb-tab {
+  flex: 1; padding: 8px 0;
+  color: var(--fg-3); background: transparent;
+  border: 0; border-bottom: 1px solid transparent;
+  margin-bottom: -1px; cursor: pointer;
+  text-align: center; transition: color .15s, border-color .15s;
+}
+.lb-tab:hover { color: var(--fg-2); }
+.lb-tab.on { color: var(--fg); border-bottom-color: var(--accent); }
+
+.lb-list { display: flex; flex-direction: column; }
+.lb-item {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 9px 14px; border-bottom: 1px solid var(--line);
+  transition: background .1s;
+}
+.lb-item:last-child { border-bottom: 0; }
+.lb-item:hover { background: var(--bg-3); }
+.lb-rank {
+  font-family: var(--mono); font-size: 11px; color: var(--fg-4);
+  text-align: center; font-weight: 500;
+}
+.lb-item.top-1 .lb-rank { color: var(--accent); font-weight: 700; }
+.lb-item.top-2 .lb-rank,
+.lb-item.top-3 .lb-rank { color: var(--fg-2); font-weight: 600; }
+.lb-user { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.lb-name {
+  font-size: 13px; color: var(--fg); line-height: 1.2; letter-spacing: -0.005em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lb-you-tag {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+  color: var(--accent); margin-left: 6px;
+}
+.lb-count {
+  font-family: var(--sans); font-weight: 600; font-size: 14px; color: var(--fg);
+  letter-spacing: -0.01em; text-align: right; line-height: 1.1;
+}
+.lb-you-row {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 9px 14px;
+  background: color-mix(in oklab, var(--accent) 8%, var(--bg-2));
+  border-top: 1px dashed var(--line-2);
+}
+.lb-you-row .lb-rank { color: var(--accent); font-weight: 600; }
+
 /* Submit callout */
 .submit-card { padding: 18px; }
 .submit-card h4 { margin: 0 0 6px; font-family: var(--sans); font-size: 16px; letter-spacing: -0.02em; font-weight: 700; }

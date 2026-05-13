@@ -403,6 +403,25 @@ export function getKindCounts(cookie?: string): Promise<KindCounts> {
   }));
 }
 
+export type ContributorRange = "week" | "all";
+
+export interface ContributorEntry {
+  rank: number;
+  user_id: string;
+  display_name: string;
+  count: number;
+}
+
+export interface ContributorLeaderboard {
+  range: ContributorRange;
+  entries: ContributorEntry[];
+  you?: ContributorEntry;
+}
+
+export function getSubmissionLeaderboard(range: ContributorRange, cookie?: string): Promise<ContributorLeaderboard> {
+  return apiFetchData<ContributorLeaderboard>(`/submissions/leaderboard?range=${range}`, { cookie });
+}
+
 export function getModerationQueueCount(cookie?: string): Promise<{ count: number }> {
   return Promise.all(
     ["opening", "anime", "singer"].map((type) =>
