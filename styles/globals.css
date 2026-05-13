@@ -2779,7 +2779,7 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   position: relative; overflow: hidden;
   display: grid; place-items: center;
 }
-.ms-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ms-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ms-thumb.ms-thumb-poster {
   aspect-ratio: 2/3; width: 80px;
 }
