@@ -87,6 +87,11 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
   // (round.start carries no score field — without this the HUD would
   // reset to 0–0 the moment a new round started).
   const [score, setScore] = useState<Record<string, number>>({});
+  // Per-round summaries collected as round.end frames arrive. The
+  // backend's match.end frame doesn't (yet) include the timeline —
+  // collecting client-side gives us the rich payload (opening reveal,
+  // response time, who won) for the end-screen timeline regardless.
+  const [roundResults, setRoundResults] = useState<RoundEndData[]>([]);
   const sockRef = useRef<PvPSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -179,6 +184,9 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       case "round.end": {
         const d = f.data as RoundEndData;
         if (d.score) setScore(d.score);
+        // Append to the per-round timeline; de-dupe by round_id in
+        // case the WS re-delivers a frame after a reconnect.
+        setRoundResults((prev) => prev.some((r) => r.round_id === d.round_id) ? prev : [...prev, d]);
         setPhase((p) => p.kind === "playing" || p.kind === "reveal"
           ? { kind: "round-end", result: d, round: p.kind === "playing" ? p.round : (p as any).round, nextAt: Date.now() + ROUND_END_HOLD_MS }
           : p);
@@ -361,6 +369,7 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
             result={phase.result}
             view={view}
             meID={user.id}
+            roundResults={roundResults}
             onRematch={handleRematch}
           />
         )}
@@ -775,15 +784,16 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
   );
 }
 
-function MatchEndView({ result, view, meID, onRematch }: { result: MatchEndData; view: PvPMatchView; meID: string; onRematch: () => void }) {
+function MatchEndView({ result, view, meID, roundResults, onRematch }: { result: MatchEndData; view: PvPMatchView; meID: string; roundResults: RoundEndData[]; onRematch: () => void }) {
   const youWon = result.winner_user_id === meID;
   const me = view.players.find((p) => p.user_id === meID);
   const opp = view.players.find((p) => p.user_id !== meID);
   const myScore = result.final_score[meID] ?? 0;
   const oppScore = opp ? (result.final_score[opp.user_id] ?? 0) : 0;
-  // Backend currently sends rounds: null. Treat as empty so the
-  // end-screen renders the score + actions even without the timeline.
-  const rounds = result.rounds ?? [];
+  // Prefer the client-side timeline (collected from round.end frames
+  // during the match) since the backend's match.end frame doesn't
+  // include a rounds list yet.
+  const rounds = roundResults;
   return (
     <div style={{ maxWidth: 1120, margin: "0 auto", padding: "48px 40px 64px" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 28, paddingBottom: 28, borderBottom: `1px solid ${SOLO.line}` }}>
@@ -807,25 +817,64 @@ function MatchEndView({ result, view, meID, onRematch }: { result: MatchEndData;
         </div>
       </div>
 
-      {/* Round timeline */}
+      {/* Round timeline — one card per round, colored by outcome. */}
       {rounds.length > 0 && (
       <div style={{ marginTop: 32, padding: "22px 24px", background: SOLO.bg2, border: `1px solid ${SOLO.line}`, borderRadius: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, letterSpacing: "0.14em", textTransform: "uppercase" }}>
           <span>Round-by-round</span>
+          <span>{rounds.length} {rounds.length === 1 ? "round" : "rounds"}</span>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {rounds.map((r) => {
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {rounds.map((r, idx) => {
             const youW = r.winner_user_id === meID;
+            const oppW = !!r.winner_user_id && !youW;
             const ns = r.no_score;
+            const palette = ns
+              ? { bg: SOLO.bg3, border: SOLO.line2, accent: SOLO.fg4, label: "No score" }
+              : youW
+                ? { bg: `${SOLO.accent}1a`, border: `${SOLO.accent}55`, accent: SOLO.accent, label: "You" }
+                : { bg: "rgba(106,169,255,.12)", border: "rgba(106,169,255,.4)", accent: "#6aa9ff", label: opp?.display_name ?? "Opponent" };
+            const myResp = r.responses?.[meID];
+            const oppResp = opp ? r.responses?.[opp.user_id] : undefined;
+            const winnerResp = youW ? myResp : oppW ? oppResp : undefined;
+            const respMs = winnerResp?.response_ms;
+            const op = r.correct_opening;
             return (
-              <div key={r.round_no} style={{
-                flex: 1, height: 38, borderRadius: 5, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                fontFamily: SOLO.mono, fontSize: 11, fontWeight: 600,
-                background: ns ? SOLO.bg3 : youW ? `${SOLO.accent}26` : "rgba(106,169,255,.2)",
-                color: ns ? SOLO.fg4 : youW ? SOLO.accent : "#6aa9ff",
-                border: `1px solid ${ns ? SOLO.line2 : youW ? `${SOLO.accent}66` : "rgba(106,169,255,.4)"}`,
+              <div key={r.round_id} style={{
+                display: "grid", gridTemplateColumns: "44px 1fr auto", alignItems: "center", gap: 16,
+                padding: "14px 16px", borderRadius: 8,
+                background: palette.bg, border: `1px solid ${palette.border}`,
               }}>
-                {r.round_no}
+                <div style={{
+                  width: 36, height: 36, borderRadius: 6,
+                  display: "grid", placeItems: "center",
+                  background: ns ? SOLO.bg2 : `${palette.accent}26`,
+                  border: `1px solid ${palette.border}`,
+                  color: palette.accent,
+                  fontFamily: SOLO.mono, fontWeight: 700, fontSize: 14,
+                }}>
+                  {idx + 1}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {op?.title ?? "—"}
+                  </div>
+                  <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {op?.anime_name ?? "—"}
+                    {op?.singer_name ? <span style={{ color: SOLO.fg4 }}> · {op.singer_name}</span> : null}
+                    {op?.year ? <span style={{ color: SOLO.fg4 }}> · {op.year}</span> : null}
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
+                  <div style={{ fontFamily: SOLO.mono, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: palette.accent, fontWeight: 600 }}>
+                    {palette.label}
+                  </div>
+                  {!ns && typeof respMs === "number" && (
+                    <div style={{ fontFamily: SOLO.mono, fontSize: 12, color: SOLO.fg2 }}>
+                      {(respMs / 1000).toFixed(2)}s
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
