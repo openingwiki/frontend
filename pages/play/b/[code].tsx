@@ -637,15 +637,15 @@ function RevealView({ mode, countdownMs, view, score }: { mode: string; countdow
   return (
     <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
       <MatchHud view={view} scoreOverride={score} />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "80px 40px" }}>
+      <div className="pvp-reveal-stage" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "80px 40px" }}>
         <Eyebrow>Next round · listen carefully</Eyebrow>
-        <h1 style={{ margin: "20px 0 0", fontWeight: 900, fontSize: 160, letterSpacing: "-0.06em", lineHeight: 0.9, color: SOLO.accent, textShadow: `0 0 60px ${SOLO.accent}55` }}>
+        <h1 className="game-mode-big" style={{ margin: "20px 0 0", fontWeight: 900, fontSize: 160, letterSpacing: "-0.06em", lineHeight: 0.9, color: SOLO.accent, textShadow: `0 0 60px ${SOLO.accent}55` }}>
           {mode.toUpperCase()}
         </h1>
-        <p style={{ marginTop: 24, color: SOLO.fg2, fontSize: 18, maxWidth: 520, lineHeight: 1.45 }}>
+        <p className="pvp-reveal-desc" style={{ marginTop: 24, color: SOLO.fg2, fontSize: 18, maxWidth: 520, lineHeight: 1.45 }}>
           No video, no lyrics. Just the song. Guess the anime as fast as you can — first correct wins the round.
         </p>
-        <div style={{ marginTop: 60, fontFamily: SOLO.mono, fontWeight: 500, fontSize: 120, color: SOLO.fg, letterSpacing: "-0.04em" }}>
+        <div className="pvp-reveal-countdown" style={{ marginTop: 60, fontFamily: SOLO.mono, fontWeight: 500, fontSize: 120, color: SOLO.fg, letterSpacing: "-0.04em" }}>
           {Math.ceil(countdownMs / 1000)}
         </div>
         <div style={{ marginTop: 8, fontFamily: SOLO.mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: SOLO.fg4 }}>
