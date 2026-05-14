@@ -10,6 +10,7 @@ import type {
   SoloAnswerResponse, SoloOpening, SoloRound, SoloRun, SoloRunSummary,
 } from "@/lib/play";
 import type { User } from "@/lib/types";
+import { useKeyboardInset } from "@/lib/useKeyboardInset";
 
 interface Props {
   user: User | null;
@@ -186,7 +187,13 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
 
   return (
     <>
-      <Head><title>Solo run · Opening Wiki</title></Head>
+      <Head>
+        <title>Solo run · Opening Wiki</title>
+        {/* run.tsx doesn't go through Layout, so it needs its own viewport
+            meta with `interactive-widget=resizes-content` for the smooth
+            on-screen-keyboard handling on supported browsers. */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+      </Head>
       <audio ref={audioRef} preload="auto" />
       <div data-mobile-game style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "100vh", fontFamily: SOLO.sans, display: "flex", flexDirection: "column" }}>
         <TopbarSolo />
@@ -334,6 +341,10 @@ function ModeRevealScreen({ mode, countdownMs, run, round }: { mode: string; cou
 }
 
 function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; run: SoloRun; playedMs: number; onSubmit: (animeId: string | null) => void }) {
+  // Keeps `--kbd-inset` on <html> in sync with the on-screen keyboard
+  // height so the fixed-bottom search bar (and its suggestions) ride
+  // above the keyboard instead of being covered.
+  useKeyboardInset();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Array<{ id: string; title: string; year: number | null; cover: string | null }>>([]);
   const [activeIdx, setActiveIdx] = useState(0);

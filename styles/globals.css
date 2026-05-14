@@ -3477,8 +3477,30 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
     top: 14px !important; left: 16px !important;
     font-size: 10px !important;
   }
+  /* In-match search bar pins to the bottom of the layout viewport so
+     when the on-screen keyboard appears the bar rides up with it
+     (via `--kbd-inset` from useKeyboardInset on browsers without
+     `interactive-widget=resizes-content` support, or via the layout
+     viewport itself on browsers that do). The waveform/HUD behind it
+     stay put — no page-shake. The fixed bar also creates the
+     containing block for `.game-suggs` so they stack right above it. */
   [data-mobile-game] .game-input {
-    margin: 0 16px 22px !important;
+    position: fixed !important;
+    left: 16px !important;
+    right: 16px !important;
+    /* Stack: keyboard inset (JS) + iOS home-indicator safe area + 16px
+       breathing room. When the keyboard is open iOS reports
+       `safe-area-inset-bottom: 0` because the keyboard occupies that
+       region, so the safe-area term only adds height when the keyboard
+       is *closed* — exactly what we want. */
+    bottom: calc(
+      var(--kbd-inset, env(keyboard-inset-height, 0px))
+      + env(safe-area-inset-bottom, 0px)
+      + 16px
+    ) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: 30;
   }
   [data-mobile-game] .game-input input {
     font-size: 16px !important;
@@ -3488,15 +3510,24 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
      blocking the actual text). Hide it on mobile. */
   [data-mobile-game] .game-submit-hint { display: none !important; }
 
-  /* The autocomplete is `position: absolute; bottom: 100%` so its top edge
-     moves up/down as the result count changes — on mobile this reads as
-     the page shaking. Cap the height with a max and let the rows scroll
-     inside, so the visible top edge stays near-stable across queries. */
+  /* The autocomplete is `position: absolute; bottom: 100%` of the now-fixed
+     search bar — so it sits just above the bar regardless of keyboard
+     state. Span the bar's full width (left/right 0 inside the bar's
+     containing block). Cap the height + scroll inside so the top edge
+     stays near-stable across keystrokes. */
   [data-mobile-game] .game-suggs {
-    left: 16px !important; right: 16px !important;
+    left: 0 !important; right: 0 !important;
     max-height: 50vh !important;
     overflow-y: auto !important;
     overscroll-behavior: contain;
+  }
+
+  /* The waveform stage sits in flex flow — give it room at the bottom so
+     the fixed search bar (~64px tall + safe-area + 16px gutter) doesn't
+     cover the "Name the anime. ↵ to submit." hint when the keyboard is
+     closed. */
+  [data-mobile-game] .game-stage {
+    padding-bottom: 110px !important;
   }
   /* Reveal page outer container — desktop has inline `padding: 40` and
      vertical centering, which on a 390px viewport eats 80px of horizontal

@@ -18,6 +18,7 @@ import {
   type PlayerDisconnectData,
 } from "@/lib/pvp";
 import type { User } from "@/lib/types";
+import { useKeyboardInset } from "@/lib/useKeyboardInset";
 
 interface Props {
   user: User;
@@ -650,6 +651,9 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
   score: Record<string, number>;
   onSubmit: (anime_id: string) => void; onTyping: () => void;
 }) {
+  // See run.tsx — keeps the fixed-bottom search bar above the on-screen
+  // keyboard on mobile.
+  useKeyboardInset();
   const [query, setQuery] = useState("");
   // Anime autocomplete — scoring is anime-based now, so the user
   // picks an anime and any of its openings counts as correct.
