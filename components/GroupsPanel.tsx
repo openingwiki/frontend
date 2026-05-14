@@ -22,6 +22,11 @@ const LOCK_ICON = (
     <path d="M8 11V7a4 4 0 0 1 8 0v4" />
   </svg>
 );
+const PLUS_ICON = (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
 
 function modifier(g: Group): string {
   if (g.is_system_rated) return "system";
@@ -37,35 +42,66 @@ function icon(g: Group) {
 
 export default function GroupsPanel({ groups }: Props) {
   return (
-    <div className="panel">
-      <div className="panel-head">
-        <span>Your groups</span>
-        <Link href="/groups?new=1">+ New</Link>
-      </div>
+    <>
+      {/* Desktop panel — vertical list with row-per-group. Hidden on mobile
+          where the .grp-strip below takes over (the design uses a
+          horizontally-scrollable chip strip on phones). */}
+      <div className="panel grp-panel-desktop">
+        <div className="panel-head">
+          <span>Your groups</span>
+          <Link href="/groups?new=1">+ New</Link>
+        </div>
 
-      <div className="grp-list">
-        {groups.map((g) => (
-          <div key={g.id} className={`grp-item-wrap ${modifier(g)}`.trim()}>
-            <Link
-              className={`grp-item ${modifier(g)}`.trim()}
-              href={`/groups/${g.id}`}
-            >
-              <span className="grp-icon">{icon(g)}</span>
-              <span className="grp-name">{g.name}</span>
-              <span className="grp-count">{g.opening_count}</span>
-            </Link>
-            {g.is_public && g.share_slug && (
-              <Link className="grp-public-link" href={`/g/${g.share_slug}`} title="Open public page">
-                Public
+        <div className="grp-list">
+          {groups.map((g) => (
+            <div key={g.id} className={`grp-item-wrap ${modifier(g)}`.trim()}>
+              <Link
+                className={`grp-item ${modifier(g)}`.trim()}
+                href={`/groups/${g.id}`}
+              >
+                <span className="grp-icon">{icon(g)}</span>
+                <span className="grp-name">{g.name}</span>
+                <span className="grp-count">{g.opening_count}</span>
               </Link>
-            )}
-          </div>
-        ))}
+              {g.is_public && g.share_slug && (
+                <Link className="grp-public-link" href={`/g/${g.share_slug}`} title="Open public page">
+                  Public
+                </Link>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="panel-foot">
+          <Link href="/groups">Manage all groups →</Link>
+        </div>
       </div>
 
-      <div className="panel-foot">
-        <Link href="/groups">Manage all groups →</Link>
+      {/* Mobile chip strip — hidden on desktop. Horizontally scrollable so
+          the rail of groups doesn't blow up the page width. */}
+      <div className="grp-strip" aria-hidden={false}>
+        <div className="grp-strip-head">
+          <h3>Your groups</h3>
+          <Link href="/groups">See all →</Link>
+        </div>
+        <div className="grp-strip-row">
+          {groups.map((g) => (
+            <Link
+              key={g.id}
+              href={`/groups/${g.id}`}
+              className={`grp-chip ${modifier(g)}`.trim()}
+            >
+              <span className="grp-chip-ico">{icon(g)}</span>
+              <span className="grp-chip-name">{g.name}</span>
+              <span className="grp-chip-count">{g.opening_count}</span>
+            </Link>
+          ))}
+          <Link href="/groups?new=1" className="grp-chip add">
+            <span className="grp-chip-ico">{PLUS_ICON}</span>
+            <span className="grp-chip-name">New group</span>
+          </Link>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

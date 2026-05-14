@@ -2973,6 +2973,53 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   --bg-4: #261f37;
 }
 
+/* Groups: mobile chip strip — only shown < 720px (rule lower in file). The
+   default desktop view hides this entirely so the panel stays the canonical
+   widget there. */
+.grp-strip { display: none; }
+.grp-strip-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 0 0 10px;
+}
+.grp-strip-head h3 {
+  margin: 0;
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-3); font-weight: 500;
+}
+.grp-strip-head a {
+  font-family: var(--mono); font-size: 11px; color: var(--accent);
+}
+.grp-strip-row {
+  display: flex; gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* Negative inline margin + matching padding lets chips touch the screen
+     edge while still scrolling smoothly. */
+  margin: 0 calc(-1 * var(--pad));
+  padding: 2px var(--pad) 8px;
+}
+.grp-strip-row::-webkit-scrollbar { display: none; }
+.grp-chip {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px; color: var(--fg);
+  text-decoration: none;
+  transition: border-color .15s;
+}
+.grp-chip:active { border-color: var(--line-2); }
+.grp-chip-ico { display: grid; place-items: center; color: var(--fg-4); }
+.grp-chip.system .grp-chip-ico { color: var(--accent); }
+.grp-chip.public .grp-chip-ico { color: var(--ok); }
+.grp-chip-name { white-space: nowrap; }
+.grp-chip-count {
+  font-family: var(--mono); font-size: 11px; color: var(--fg-3);
+}
+.grp-chip.add { color: var(--accent); border-style: dashed; }
+.grp-chip.add .grp-chip-ico { color: var(--accent); }
+
 /* The Topbar hamburger is hidden by default; only the desktop nav shows. */
 .topbar-menu {
   display: none;
@@ -3122,11 +3169,26 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   .nav { display: none; }
   .topbar-inner { justify-content: space-between; height: 56px; }
 
-  /* Push content above the bottom tab bar so the last item isn't hidden. */
+  /* The Rolebar (mod/admin shortcut to the moderation queue) is redundant
+     on mobile — the drawer's Moderation section already exposes the same
+     entry with the unread-count badge. */
+  .rolebar { display: none; }
+
+  /* A loose grid cell or a long nowrap string can push the page wider than
+     the viewport on phones, especially on the openings tab where some
+     anime/singer names are long enough to overflow `.op-meta`. Clamp the
+     body wrapper as a safety net so the user can't accidentally horizontal-
+     scroll the whole page. */
+  html, body { overflow-x: hidden; }
   .page-body {
+    overflow-x: hidden;
     padding-bottom: calc(var(--m-bottom) + env(safe-area-inset-bottom, 0));
   }
   footer { padding-bottom: calc(var(--m-bottom) + env(safe-area-inset-bottom, 0)); }
+
+  /* Groups: hide the desktop panel, reveal the chip strip. */
+  .grp-panel-desktop { display: none; }
+  .grp-strip { display: block; }
 }
 
 /* Touch-friendly typography + spacing tweaks below 720. The Home page,
@@ -3170,12 +3232,17 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   .side, .side-left { gap: 18px; }
 
   /* Catalogue cards become a horizontal row: thumb · meta — like the
-     mobile design's 132px thumb + info column. */
+     mobile design's 132px thumb + info column. minmax(0, 1fr) on the info
+     column lets the truncation rules in .op-meta / .op-title actually take
+     effect; without it the default `auto` min-track means a long nowrap
+     anime/singer name expands the column past 1fr and pushes the page
+     wider than the viewport (this was the source of the horizontal
+     scrollbar that only showed up on the Openings tab). */
   .cat { grid-template-columns: 1fr; gap: 14px; padding: 4px 0 16px; }
-  .op-card { display: grid; grid-template-columns: 132px 1fr; gap: 12px; align-items: center; }
+  .op-card { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 12px; align-items: center; }
   .op-thumb { border-radius: 8px; }
-  .op-info { flex-direction: column; gap: 4px; align-items: stretch; }
-  .op-main { flex: none; }
+  .op-info { flex-direction: column; gap: 4px; align-items: stretch; min-width: 0; }
+  .op-main { flex: none; min-width: 0; }
   .op-title { font-size: 15px; line-height: 1.2; margin: 0; -webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
   .op-meta { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .op-score { text-align: left; display: flex; align-items: baseline; gap: 8px; margin-top: 2px; }

@@ -25,7 +25,17 @@ export default function OpeningCard({ op, newLabel }: Props) {
       <Link href={`/openings/${op.id}`} className={thumbClass}>
         {thumb && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb} alt="" className="op-thumb-img" loading="lazy" />
+          <img
+            src={thumb}
+            alt=""
+            className="op-thumb-img"
+            // i.ytimg.com sometimes refuses hotlinks when the Referer header
+            // is set (most common on iOS Safari + strict cross-origin
+            // referrer policies). no-referrer makes the request anonymous
+            // and unblocks the thumbnail.
+            referrerPolicy="no-referrer"
+            decoding="async"
+          />
         )}
         {newLabel && <span className="op-badge new">NEW · {newLabel}</span>}
         {op.duration && <span className="op-duration">{op.duration}</span>}
