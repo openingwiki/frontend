@@ -66,17 +66,28 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 type Phase =
   | { kind: "lobby" }
   // Page just loaded into a match that's already past the lobby
-  // (status === "countdown" | "playing"). The WS hasn't connected yet
-  // so we don't have a `round` to render; show a brief reconnect
-  // message instead of the wrong lobby UI.
+  // (status === "countdown" | "playing"), or we just came back from a
+  // brief disconnect mid-round. We don't have a `round` to render so
+  // we show the live HUD + scores and wait for the next round.start
+  // frame. The server doesn't currently replay current-round state on
+  // (re)connect, so this period lasts up to `clip_duration_ms`.
   | { kind: "rejoining" }
   | { kind: "countdown"; startsAtMs: number }
   | { kind: "reveal"; round: RoundStartData; countdownMs: number }
   | { kind: "playing"; round: RoundStartData; playedMs: number }
   | { kind: "round-end"; result: RoundEndData; round: RoundStartData; nextAt: number }
   | { kind: "ended"; result: MatchEndData; winner: string | null }
-  | { kind: "error"; message: string }
-  | { kind: "disconnected"; userID: string; graceExpiresAtMs: number };
+  | { kind: "error"; message: string };
+
+// Opponent-disconnect state. Lives alongside the active phase rather
+// than replacing it, so a brief refresh-induced disconnect doesn't kick
+// the surviving player out of `playing` into the lobby (which is what
+// the previous "disconnected" phase did, since `player.reconnected`
+// unconditionally jumped to lobby).
+interface DisconnectInfo {
+  userID: string;
+  graceExpiresAtMs: number;
+}
 
 const MODE_REVEAL_MS = 2000;
 const ROUND_END_HOLD_MS = 3500;
@@ -115,7 +126,27 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
   // backend's match.end frame doesn't (yet) include the timeline —
   // collecting client-side gives us the rich payload (opening reveal,
   // response time, who won) for the end-screen timeline regardless.
-  const [roundResults, setRoundResults] = useState<RoundEndData[]>([]);
+  // Persisted to sessionStorage keyed by match code so a refresh
+  // mid-match doesn't blank out the round timeline at the end.
+  const [roundResults, setRoundResults] = useState<RoundEndData[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = sessionStorage.getItem(`pvp-rounds-${code}`);
+      return raw ? (JSON.parse(raw) as RoundEndData[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      sessionStorage.setItem(`pvp-rounds-${code}`, JSON.stringify(roundResults));
+    } catch {
+      /* full quota / private mode — silent */
+    }
+  }, [roundResults, code]);
+  // Opponent-disconnect overlay state — see DisconnectInfo above.
+  const [disconnect, setDisconnect] = useState<DisconnectInfo | null>(null);
   const sockRef = useRef<PvPSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -234,18 +265,21 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       case "player.disconnected": {
         const d = f.data as PlayerDisconnectData;
         if (d.user_id !== user.id) {
-          setPhase((p) =>
-            p.kind === "playing" || p.kind === "reveal" || p.kind === "round-end" || p.kind === "lobby"
-              ? { kind: "disconnected", userID: d.user_id, graceExpiresAtMs: d.grace_expires_at_ms }
-              : p,
-          );
+          // Overlay only — phase keeps its underlying value so that
+          // when the opponent reconnects (often within 1-2s after a
+          // page refresh) we don't have to reconstruct where they
+          // were. Previously this swapped phase to a `disconnected`
+          // kind and `player.reconnected` jumped to lobby
+          // unconditionally — that's the "round in progress but I see
+          // the lobby" bug.
+          setDisconnect({ userID: d.user_id, graceExpiresAtMs: d.grace_expires_at_ms });
         }
         break;
       }
       case "player.reconnected": {
-        setPhase((p) => p.kind === "disconnected" ? { kind: "lobby" } : p);
+        setDisconnect(null);
         // Force a REST refresh — the opponent rejoined, we want the
-        // lobby state in sync.
+        // player list / ready states in sync.
         refreshView();
         break;
       }
@@ -352,7 +386,7 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       <audio ref={audioRef} preload="auto" />
       <div data-mobile-pvp-lobby data-mobile-game style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
         {phase.kind === "rejoining" && (
-          <CenterMessage text="Reconnecting to the match…" />
+          <RejoiningView view={view} score={score} socketStatus={socketStatus} />
         )}
         {phase.kind === "lobby" && (
           <LobbyView
@@ -398,11 +432,18 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
             roundResults={roundResults}
           />
         )}
-        {phase.kind === "disconnected" && (
-          <DisconnectOverlay graceExpiresAtMs={phase.graceExpiresAtMs} userID={phase.userID} view={view} />
-        )}
         {phase.kind === "error" && (
           <CenterMessage text={phase.message} extra={<Link href="/play" style={{ color: SOLO.accent, fontFamily: SOLO.mono, fontSize: 13, textDecoration: "none" }}>back to play →</Link>} />
+        )}
+        {/* Disconnect lives as an overlay alongside whatever phase the
+            match is in, so a brief reconnect doesn't kick the surviving
+            player out of e.g. "playing" into the lobby. */}
+        {disconnect && phase.kind !== "ended" && phase.kind !== "error" && (
+          <DisconnectOverlay
+            graceExpiresAtMs={disconnect.graceExpiresAtMs}
+            userID={disconnect.userID}
+            view={view}
+          />
         )}
       </div>
     </Layout>
@@ -416,6 +457,39 @@ function CenterMessage({ text, extra }: { text: string; extra?: React.ReactNode 
     <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
       <div style={{ color: SOLO.fg, fontSize: 18 }}>{text}</div>
       {extra}
+    </div>
+  );
+}
+
+// In-match transitional view: the client has the match view (so we
+// know players + current score) but no active round (`round.start`
+// hasn't fired since we connected). Used both on a mid-match refresh
+// and right after a brief disconnect, where the previous "Reconnecting
+// to the match…" blank screen left the player with no context.
+function RejoiningView({
+  view, score, socketStatus,
+}: {
+  view: PvPMatchView;
+  score: Record<string, number>;
+  socketStatus: string;
+}) {
+  const inMatch = view.match.status === "playing" || view.match.status === "countdown";
+  return (
+    <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
+      <MatchHud view={view} scoreOverride={score} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "60px 24px", gap: 16 }}>
+        <Eyebrow color={socketStatus === "open" ? SOLO.accent : SOLO.warn} dotColor={socketStatus === "open" ? SOLO.accent : SOLO.warn}>
+          {socketStatus === "open" ? (inMatch ? "Round in progress" : "Syncing match") : "Reconnecting…"}
+        </Eyebrow>
+        <h2 style={{ margin: 0, fontWeight: 800, fontSize: 28, letterSpacing: "-0.025em", lineHeight: 1.1, maxWidth: 480 }}>
+          {inMatch ? <>Waiting for the next <span style={{ color: SOLO.accent }}>round.</span></> : "Catching up on the match…"}
+        </h2>
+        <p style={{ margin: 0, color: SOLO.fg2, fontSize: 14, maxWidth: 480, lineHeight: 1.55 }}>
+          {inMatch
+            ? "The current clip is still playing on the other side. You'll drop into the next round automatically when it starts."
+            : "Just a moment — restoring the live state from the server."}
+        </p>
+      </div>
     </div>
   );
 }
@@ -776,12 +850,22 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
               Anime matches
             </div>
             {suggestions.map((s, i) => (
-              <div key={s.id} onMouseEnter={() => setActiveIdx(i)} onClick={() => onSubmit(s.id)} style={{
-                display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
-                background: i === activeIdx ? SOLO.bg3 : "transparent",
-                borderLeft: i === activeIdx ? `2px solid ${SOLO.accent}` : "2px solid transparent",
-                cursor: "pointer",
-              }}>
+              <div
+                key={s.id}
+                onMouseEnter={() => setActiveIdx(i)}
+                // See run.tsx — pointerdown beats iOS Safari's click
+                // cancellation when the keyboard closes on tap.
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  onSubmit(s.id);
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
+                  background: i === activeIdx ? SOLO.bg3 : "transparent",
+                  borderLeft: i === activeIdx ? `2px solid ${SOLO.accent}` : "2px solid transparent",
+                  cursor: "pointer",
+                }}
+              >
                 <div style={{
                   width: 38, height: 52, borderRadius: 4,
                   border: `1px solid ${SOLO.line}`, flexShrink: 0, overflow: "hidden",
