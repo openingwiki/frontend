@@ -481,8 +481,8 @@ function RevealScreen({ result, run }: { result: SoloAnswerResponse; run: SoloRu
       <div style={{ position: "absolute", top: 60, left: 0, right: 0, bottom: 0, background: correct ? `${SOLO.ok}10` : `${SOLO.danger}0d`, pointerEvents: "none" }} />
       <TimerBar pct={0.4} danger={!correct} />
       <Hud run={run} label={correct && result.round_result.life_regen ? "streak +1 · ♥+1" : correct ? "streak +1" : "streak reset"} />
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
-        <div style={{ position: "absolute", top: 30, left: 40 }}>
+      <div className="reveal-page" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
+        <div className="reveal-eyebrow" style={{ position: "absolute", top: 30, left: 40 }}>
           <Eyebrow color={correct ? SOLO.ok : SOLO.danger} dotColor={correct ? SOLO.ok : SOLO.danger}>
             {correct ? `Correct · ${formatResponseMs(result.round_result.your_response_ms)}` : "Time's up · 20.0s"}
           </Eyebrow>

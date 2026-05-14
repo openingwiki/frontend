@@ -91,7 +91,7 @@ export default function MySubmissionsPage({ user, modQueueCount, initial }: Prop
         <div className="ms-head">
           <div>
             <h1 className="ms-h1">Your <em>submissions</em>.</h1>
-            <p className="ms-sub">
+            <p className="ms-head-sub">
               {c.all} total · recently submitted entries and their review state
             </p>
           </div>

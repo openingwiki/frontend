@@ -2729,7 +2729,10 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   margin: 0 0 10px;
 }
 .ms-h1 em { font-style: normal; color: var(--accent); }
-.ms-sub { color: var(--fg-3); font-family: var(--mono); font-size: 12px; margin: 0; letter-spacing: 0.04em; }
+/* Header lede under "Your submissions." — kept on its own class so the
+   submission-row `.ms-sub` card styling further down doesn't bleed onto
+   this paragraph (it used to inherit the bordered card look). */
+.ms-head-sub { color: var(--fg-3); font-family: var(--mono); font-size: 12px; margin: 0; letter-spacing: 0.04em; }
 .ms-head-right { display: flex; gap: 8px; }
 
 .ms-filter-bar {
@@ -3495,25 +3498,51 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
     overflow-y: auto !important;
     overscroll-behavior: contain;
   }
+  /* Reveal page outer container — desktop has inline `padding: 40` and
+     vertical centering, which on a 390px viewport eats 80px of horizontal
+     space and makes the card bounce vertically between in-match and
+     reveal. Pin to the top of the stage and tighten gutters. */
+  [data-mobile-game] .reveal-page {
+    padding: 12px 16px 16px !important;
+    align-items: flex-start !important;
+  }
+  [data-mobile-game] .reveal-eyebrow {
+    top: 12px !important;
+    left: 16px !important;
+  }
+
+  /* Compact reveal — matches the design's "song" card: 64px cover on the
+     left, info column on the right, stacked vertically beneath an
+     eyebrow. The previous mobile rule produced a 440px-tall card stacked
+     vertically; the in-match screen is only ~350px tall, so the swap
+     felt like the page was being shoved around. This compact form fits
+     in the stage area without forcing layout shifts. */
   [data-mobile-game] .reveal-card {
-    grid-template-columns: 1fr !important;
-    gap: 18px !important;
-    padding: 22px !important;
-    margin: 0 16px !important;
+    grid-template-columns: 64px minmax(0, 1fr) !important;
+    gap: 14px !important;
+    padding: 14px !important;
+    margin: 32px 0 0 !important;
+    align-items: start !important;
+    max-width: none !important;
   }
   [data-mobile-game] .reveal-cover {
-    width: 100% !important;
-    max-width: 180px;
-    height: auto !important;
-    aspect-ratio: 2 / 3;
-    justify-self: center;
+    width: 64px !important;
+    height: 90px !important;
+    max-width: none !important;
+    aspect-ratio: auto !important;
+    justify-self: auto !important;
   }
   [data-mobile-game] .reveal-headline {
-    font-size: 32px !important;
+    font-size: 22px !important;
+    line-height: 1.15 !important;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
   }
   [data-mobile-game] .reveal-stats {
     flex-wrap: wrap !important;
-    gap: 18px !important;
+    gap: 12px 18px !important;
+    margin-top: 12px !important;
+    padding-top: 12px !important;
   }
   /* Solo-run end & match-end screens */
   [data-mobile-game] .game-end-page {
