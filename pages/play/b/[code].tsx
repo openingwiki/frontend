@@ -320,7 +320,7 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
     <Layout user={user} modQueueCount={modQueueCount} title={`Battle ${view.match.room_code}`}>
       <Head><meta name="description" content="PvP battle." /></Head>
       <audio ref={audioRef} preload="auto" />
-      <div style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
+      <div data-mobile-pvp-lobby data-mobile-game style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
         {phase.kind === "lobby" && (
           <LobbyView
             view={view}
@@ -400,13 +400,13 @@ function LobbyView({
     try { await navigator.clipboard.writeText(inviteUrl); } catch { /* */ }
   };
   return (
-    <div style={{ maxWidth: 1120, margin: "0 auto", padding: "32px 40px 48px" }}>
+    <div className="lobby-page" style={{ maxWidth: 1120, margin: "0 auto", padding: "32px 40px 48px" }}>
       <nav style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginBottom: 14, display: "flex", gap: 6 }}>
         <Link href="/play" style={{ color: SOLO.fg2, textDecoration: "none" }}>Play</Link>
         <span style={{ color: SOLO.fg4 }}>/</span>
         <span style={{ color: SOLO.fg2 }}>Lobby</span>
       </nav>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 32, paddingBottom: 24, borderBottom: `1px solid ${SOLO.line}` }}>
+      <div className="lobby-head" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 32, paddingBottom: 24, borderBottom: `1px solid ${SOLO.line}` }}>
         <div>
           <Eyebrow color={filled ? SOLO.ok : SOLO.fg3} dotColor={filled ? SOLO.ok : SOLO.accent}>
             {filled ? "Lobby · 2 / 2" : "Lobby · open"}
@@ -429,17 +429,17 @@ function LobbyView({
       </div>
 
       {/* VS panel */}
-      <div style={{ marginTop: 32, display: "grid", gridTemplateColumns: "1fr 80px 1fr", gap: 0, alignItems: "stretch" }}>
+      <div className="vs-panel" style={{ marginTop: 32, display: "grid", gridTemplateColumns: "1fr 80px 1fr", gap: 0, alignItems: "stretch" }}>
         <PlayerCard
           player={view.players.find((p) => p.user_id !== opponent?.user_id) ?? view.players[0]}
           variant={isHost ? "you" : "opponent"}
           label={isHost ? "You · host" : "Host"}
           ready={view.players.find((p) => p.seat === 1)?.ready ?? false}
         />
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: SOLO.mono, fontWeight: 600, fontSize: 20, color: SOLO.fg3, letterSpacing: "0.14em", gap: 14 }}>
-          <div style={{ flex: 1, width: 1, background: `linear-gradient(180deg, transparent 0%, ${SOLO.line2} 50%, transparent 100%)` }} />
+        <div className="vs-divider" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: SOLO.mono, fontWeight: 600, fontSize: 20, color: SOLO.fg3, letterSpacing: "0.14em", gap: 14 }}>
+          <div className="vs-line" style={{ flex: 1, width: 1, background: `linear-gradient(180deg, transparent 0%, ${SOLO.line2} 50%, transparent 100%)` }} />
           <div style={{ padding: "8px 0" }}>VS</div>
-          <div style={{ flex: 1, width: 1, background: `linear-gradient(180deg, transparent 0%, ${SOLO.line2} 50%, transparent 100%)` }} />
+          <div className="vs-line" style={{ flex: 1, width: 1, background: `linear-gradient(180deg, transparent 0%, ${SOLO.line2} 50%, transparent 100%)` }} />
         </div>
         {opponent ? (
           <PlayerCard
@@ -481,7 +481,7 @@ function LobbyView({
       )}
 
       {filled && (
-        <div style={{
+        <div className="lobby-cta" style={{
           marginTop: 28, background: `linear-gradient(90deg, rgba(125,211,143,.06) 0%, rgba(167,139,250,.06) 100%)`,
           border: `1px solid rgba(125,211,143,.4)`, borderRadius: 12, padding: "22px 28px",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20,
@@ -497,7 +497,7 @@ function LobbyView({
               First to {view.match.target_score} · audio · top 1,000 pool
             </div>
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div className="lobby-cta-actions" style={{ display: "flex", gap: 10 }}>
             <button onClick={onLeave} style={lobbyBtn(SOLO.fg2, "transparent")}>Leave</button>
             <button onClick={onReady} style={lobbyBtn(meReady ? SOLO.fg : SOLO.bg, meReady ? SOLO.bg3 : SOLO.accent, !meReady)}>
               {meReady ? "Unready" : "✓ Ready"}
@@ -620,23 +620,23 @@ function MatchHud({ view, scoreOverride }: { view: PvPMatchView; scoreOverride?:
   const hostScore = scoreOverride?.[host?.user_id ?? ""] ?? 0;
   const oppScore = scoreOverride?.[opp?.user_id ?? ""] ?? 0;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 24, padding: "16px 28px", background: "rgba(12,10,20,.92)", borderBottom: `1px solid ${SOLO.line}` }}>
+    <div className="pvp-hud" style={{ display: "flex", alignItems: "center", gap: 24, padding: "16px 28px", background: "rgba(12,10,20,.92)", borderBottom: `1px solid ${SOLO.line}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1 }}>
         <div style={{ width: 42, height: 42, borderRadius: "50%", background: SOLO.bg3, border: `2px solid ${SOLO.accent}`, color: SOLO.accent, display: "grid", placeItems: "center", fontWeight: 700, fontSize: 16 }}>
           {(host?.display_name?.[0] ?? "?").toUpperCase()}
         </div>
-        <div style={{ fontWeight: 600, fontSize: 14, color: SOLO.fg }}>{host?.display_name ?? "—"}</div>
+        <div className="pvp-hud-name" style={{ fontWeight: 600, fontSize: 14, color: SOLO.fg }}>{host?.display_name ?? "—"}</div>
       </div>
       <div style={{ width: 1, height: 36, background: SOLO.line2 }} />
       <div style={{ fontFamily: SOLO.mono, fontWeight: 500, fontSize: 34, color: SOLO.accent, letterSpacing: "-0.04em" }}>{hostScore}</div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 24px" }}>
+      <div className="pvp-hud-mid" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 24px" }}>
         <div style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg3, letterSpacing: "0.14em", textTransform: "uppercase" }}>Race</div>
         <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg2, letterSpacing: "0.06em" }}>first to <span style={{ color: SOLO.fg }}>{view.match.target_score}</span></div>
       </div>
       <div style={{ fontFamily: SOLO.mono, fontWeight: 500, fontSize: 34, color: SOLO.line2, letterSpacing: "-0.04em" }}>{oppScore}</div>
       <div style={{ width: 1, height: 36, background: SOLO.line2 }} />
       <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, justifyContent: "flex-end" }}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: SOLO.fg, textAlign: "right" }}>{opp?.display_name ?? "—"}</div>
+        <div className="pvp-hud-name" style={{ fontWeight: 600, fontSize: 14, color: SOLO.fg, textAlign: "right" }}>{opp?.display_name ?? "—"}</div>
         <div style={{ width: 42, height: 42, borderRadius: "50%", background: SOLO.bg3, border: `2px solid #6aa9ff`, color: "#6aa9ff", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 16 }}>
           {(opp?.display_name?.[0] ?? "?").toUpperCase()}
         </div>
@@ -698,15 +698,15 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
     <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
       <MatchHud view={view} scoreOverride={score} />
       <TimerBar pct={pct} danger={secsLeft < 5} />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 0 30px", position: "relative" }}>
-        <div style={{
+      <div className="game-stage" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 0 30px", position: "relative" }}>
+        <div className="game-clip-time" style={{
           position: "absolute", top: 20, right: 40,
           fontFamily: SOLO.mono, fontSize: 56, fontWeight: 500,
           letterSpacing: "-0.04em", color: secsLeft < 5 ? SOLO.danger : SOLO.fg, lineHeight: 1,
         }}>
-          {secsLeft.toFixed(1)}<span style={{ color: SOLO.fg4, fontSize: 32 }}>s</span>
+          {secsLeft.toFixed(1)}<s style={{ color: SOLO.fg4, fontSize: 32 }}>s</s>
         </div>
-        <div style={{
+        <div className="game-clip-label" style={{
           position: "absolute", top: 28, left: 40,
           fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3,
           letterSpacing: "0.14em", textTransform: "uppercase",
@@ -718,9 +718,9 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
           Name the anime. ↵ to submit.
         </div>
       </div>
-      <div style={{ padding: "0 40px 32px", position: "relative" }}>
+      <div className="game-input" style={{ padding: "0 40px 32px", position: "relative" }}>
         {suggestions.length > 0 && (
-          <div style={{
+          <div className="game-suggs" style={{
             position: "absolute", bottom: "100%", left: 40, right: 40,
             background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 10,
             marginBottom: 8, overflow: "hidden",
@@ -849,7 +849,7 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
         <div style={{ position: "absolute", top: 30, left: 40 }}>
           <Eyebrow color={accent} dotColor={accent}>{eyebrow}</Eyebrow>
         </div>
-        <div style={{
+        <div className="reveal-card" style={{
           display: "grid", gridTemplateColumns: "auto 1fr", gap: 40, maxWidth: 880,
           background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 14,
           padding: 36, position: "relative", overflow: "hidden",
@@ -859,7 +859,7 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
             border: `1px solid ${accent}55`,
             boxShadow: `0 0 40px ${accent}33, inset 0 0 60px ${accent}0a`,
           }} />
-          <div style={{
+          <div className="reveal-cover" style={{
             width: 200, height: 280, borderRadius: 8,
             background: SOLO.bg3, border: `1px solid ${SOLO.line2}`,
             backgroundImage: coverURL ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 14px, #221c33 14px 15px)`,
@@ -875,7 +875,7 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
             <div style={{ fontFamily: SOLO.mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: accent, marginBottom: 10 }}>
               {subLead}
             </div>
-            <h2 style={{ margin: 0, fontFamily: SOLO.sans, fontWeight: 800, fontSize: 56, letterSpacing: "-0.04em", lineHeight: 0.95, color: SOLO.fg }}>
+            <h2 className="reveal-headline" style={{ margin: 0, fontFamily: SOLO.sans, fontWeight: 800, fontSize: 56, letterSpacing: "-0.04em", lineHeight: 0.95, color: SOLO.fg }}>
               {op.anime_name || "—"}
             </h2>
             <div style={{ fontFamily: SOLO.sans, fontSize: 17, color: SOLO.fg2, marginTop: 8 }}>
@@ -887,7 +887,7 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
             {/* Per-player verdict cells — the "if you fail, show the
                 other one is guessed" requirement is satisfied by the
                 opp cell turning green with their response time. */}
-            <div style={{ display: "flex", gap: 36, marginTop: 24, paddingTop: 22, borderTop: `1px dashed ${SOLO.line2}` }}>
+            <div className="reveal-stats" style={{ display: "flex", gap: 36, marginTop: 24, paddingTop: 22, borderTop: `1px dashed ${SOLO.line2}` }}>
               <PlayerCell label="you" me name={me?.display_name ?? "you"} resp={myResp} />
               <PlayerCell label="opp" name={oppName} resp={oppResp} />
               {op.avg_rating ? (
@@ -952,8 +952,8 @@ function MatchEndView({ result, view, meID, roundResults }: { result: MatchEndDa
   // include a rounds list yet.
   const rounds = roundResults;
   return (
-    <div style={{ maxWidth: 1120, margin: "0 auto", padding: "48px 40px 64px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 28, paddingBottom: 28, borderBottom: `1px solid ${SOLO.line}` }}>
+    <div className="game-end-page" style={{ maxWidth: 1120, margin: "0 auto", padding: "48px 40px 64px" }}>
+      <div className="game-end-head" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 28, paddingBottom: 28, borderBottom: `1px solid ${SOLO.line}` }}>
         <div>
           <Eyebrow color={youWon ? SOLO.ok : SOLO.danger} dotColor={youWon ? SOLO.ok : SOLO.danger}>
             {youWon ? "Match · won" : "Match · lost"}{result.by_forfeit ? " · forfeit" : ""}
@@ -1039,7 +1039,7 @@ function MatchEndView({ result, view, meID, roundResults }: { result: MatchEndDa
       </div>
       )}
 
-      <div style={{ marginTop: 32, paddingTop: 18, borderTop: `1px solid ${SOLO.line}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+      <div className="game-end-actions" style={{ marginTop: 32, paddingTop: 18, borderTop: `1px solid ${SOLO.line}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>
         <Link href="/play" style={{ ...lobbyBtn(SOLO.bg, SOLO.accent, true), textDecoration: "none" }}>Back to play</Link>
       </div>
     </div>

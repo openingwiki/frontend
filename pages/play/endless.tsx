@@ -50,8 +50,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 export default function EndlessHub({ user, modQueueCount, stats, leaderboard, apiOnline }: Props) {
   return (
     <Layout user={user} modQueueCount={modQueueCount} title="Endless · solo — Opening Wiki">
-      <div style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "40px 40px 60px" }}>
+      <div data-mobile-endless-hub style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
+        <div className="solo-page" style={{ maxWidth: 1120, margin: "0 auto", padding: "40px 40px 60px" }}>
 
           {/* Breadcrumb back to Play hub */}
           <div style={{
@@ -63,7 +63,7 @@ export default function EndlessHub({ user, modQueueCount, stats, leaderboard, ap
             <span>Endless</span>
           </div>
 
-          <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32, paddingBottom: 28, borderBottom: `1px solid ${SOLO.line}` }}>
+          <header className="endless-head" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32, paddingBottom: 28, borderBottom: `1px solid ${SOLO.line}` }}>
             <div>
               <Eyebrow color={SOLO.accent} dotColor={SOLO.accent}>Endless · solo</Eyebrow>
               <h1 style={{ margin: "12px 0 0", fontFamily: SOLO.sans, fontWeight: 800, fontSize: 56, letterSpacing: "-0.04em", lineHeight: 0.98 }}>
@@ -96,7 +96,7 @@ export default function EndlessHub({ user, modQueueCount, stats, leaderboard, ap
           )}
 
           {/* Endless start CTA */}
-          <section style={{
+          <section className="endless-hero" style={{
             background: `linear-gradient(135deg, ${SOLO.bg2} 0%, ${SOLO.bg3} 100%)`,
             border: `1px solid ${SOLO.line2}`, borderRadius: 12, padding: 40,
             position: "relative", overflow: "hidden", minHeight: 280, marginTop: 28,
@@ -114,7 +114,7 @@ export default function EndlessHub({ user, modQueueCount, stats, leaderboard, ap
               Three lives. Earn one back every five in a row. Difficulty climbs as you do. Run ends when you&apos;re out.
             </p>
             <div style={{ flex: 1, minHeight: 32 }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 8, position: "relative" }}>
+            <div className="endless-hero-foot" style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 8, position: "relative" }}>
               {user ? (
                 <Link href="/play/run" style={{
                   background: SOLO.accent, color: SOLO.bg, border: "none", borderRadius: 8,
@@ -145,7 +145,7 @@ export default function EndlessHub({ user, modQueueCount, stats, leaderboard, ap
             </div>
           </section>
 
-          <section style={{ display: "grid", gridTemplateColumns: stats ? "1fr 1.1fr" : "1fr", gap: 20, marginTop: 28 }}>
+          <section className="endless-stats-grid" style={{ display: "grid", gridTemplateColumns: stats ? "1fr 1.1fr" : "1fr", gap: 20, marginTop: 28 }}>
             {stats && (
               <div style={{ background: SOLO.bg2, border: `1px solid ${SOLO.line}`, borderRadius: 12, padding: 24 }}>
                 <Eyebrow>Your records · all-time</Eyebrow>

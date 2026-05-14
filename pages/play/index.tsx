@@ -32,9 +32,9 @@ export default function PlayHub({ user, modQueueCount }: Props) {
   const pvpHref = user ? "/play/pvp/new" : `/login?next=${encodeURIComponent("/play/pvp/new")}`;
   return (
     <Layout user={user} modQueueCount={modQueueCount} title="Play — Opening Wiki">
-      <div style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "64px 40px 60px" }}>
-          <div style={{ paddingBottom: 36, borderBottom: `1px solid ${SOLO.line}` }}>
+      <div data-mobile-play-hub style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
+        <div className="solo-page" style={{ maxWidth: 1120, margin: "0 auto", padding: "64px 40px 60px" }}>
+          <div className="play-hub-head" style={{ paddingBottom: 36, borderBottom: `1px solid ${SOLO.line}` }}>
             <Eyebrow>Play</Eyebrow>
             <h1 style={{ margin: "14px 0 0", fontFamily: SOLO.sans, fontWeight: 800, fontSize: 64, letterSpacing: "-0.045em", lineHeight: 0.96 }}>
               Pick your <span style={{ color: SOLO.accent }}>mode.</span>
@@ -45,7 +45,7 @@ export default function PlayHub({ user, modQueueCount }: Props) {
             </p>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 32 }}>
+          <div className="play-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 32 }}>
             <ModeCard
               href={endlessHref}
               eyebrow="Endless · solo"
@@ -67,7 +67,7 @@ export default function PlayHub({ user, modQueueCount }: Props) {
           </div>
 
           {/* Tournaments teaser — phase-3 placeholder, no leaderboard. */}
-          <div style={{
+          <div className="play-tournament-teaser" style={{
             marginTop: 22, padding: "18px 24px",
             background: SOLO.bg2, border: `1px dashed ${SOLO.line2}`, borderRadius: 10,
             display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20,
@@ -106,7 +106,7 @@ interface ModeCardProps {
 // is a secondary visual cue; clicking anywhere on the card routes.
 function ModeCard({ href, eyebrow, title, accentWord, desc, cta, meta }: ModeCardProps) {
   return (
-    <Link href={href} style={{
+    <Link href={href} className="play-mode-card" style={{
       textDecoration: "none", color: "inherit",
       background: `linear-gradient(135deg, ${SOLO.bg2} 0%, ${SOLO.bg3} 100%)`,
       border: `1px solid ${SOLO.line2}`, borderRadius: 12, padding: 32,
@@ -130,8 +130,8 @@ function ModeCard({ href, eyebrow, title, accentWord, desc, cta, meta }: ModeCar
         {desc}
       </p>
       <div style={{ flex: 1, minHeight: 28 }} />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginTop: 18 }}>
-        <span style={{
+      <div className="play-mode-foot" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginTop: 18 }}>
+        <span className="play-mode-cta" style={{
           background: SOLO.accent, color: SOLO.bg,
           border: "none", borderRadius: 8, padding: "12px 22px",
           fontFamily: SOLO.sans, fontWeight: 600, fontSize: 14, letterSpacing: "-0.01em",

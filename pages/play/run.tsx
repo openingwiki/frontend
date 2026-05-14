@@ -158,7 +158,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
     <>
       <Head><title>Solo run · Opening Wiki</title></Head>
       <audio ref={audioRef} preload="auto" />
-      <div style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "100vh", fontFamily: SOLO.sans, display: "flex", flexDirection: "column" }}>
+      <div data-mobile-game style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "100vh", fontFamily: SOLO.sans, display: "flex", flexDirection: "column" }}>
         <TopbarSolo />
         {phase.kind === "starting" && <CenterMessage text="Loading run…" />}
         {phase.kind === "error" && <ErrorScreen message={phase.message} />}
@@ -229,7 +229,7 @@ function ErrorScreen({ message }: { message: string }) {
 
 function Hud({ run, mode, label }: { run: SoloRun; mode?: string; label?: string }) {
   return (
-    <div style={{
+    <div className="game-hud" style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "18px 40px", borderBottom: `1px solid ${SOLO.line}`,
     }}>
@@ -262,14 +262,14 @@ function ModeRevealScreen({ mode, countdownMs, run, round }: { mode: string; cou
     <>
       <TimerBar pct={0} />
       <Hud run={run} />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+      <div className="game-stage" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
         <div style={{
           position: "absolute", width: 800, height: 800, borderRadius: "50%",
           background: `radial-gradient(circle, ${SOLO.accent}26 0%, transparent 60%)`,
           filter: "blur(20px)", pointerEvents: "none",
         }} />
         <div style={{ fontFamily: SOLO.mono, fontSize: 13, letterSpacing: "0.4em", color: SOLO.fg3, marginBottom: 24 }}>— MODE —</div>
-        <div style={{
+        <div className="game-mode-big" style={{
           fontFamily: SOLO.sans, fontWeight: 900, fontSize: 200,
           letterSpacing: "-0.06em", lineHeight: 0.85, color: SOLO.fg,
           textShadow: `0 0 60px ${SOLO.accent}66`, position: "relative",
@@ -352,15 +352,15 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
     <>
       <TimerBar pct={pct} danger={secsLeft < 5} />
       <Hud run={run} mode={round.mode} />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 0 30px", position: "relative" }}>
-        <div style={{
+      <div className="game-stage" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 0 30px", position: "relative" }}>
+        <div className="game-clip-time" style={{
           position: "absolute", top: 20, right: 40,
           fontFamily: SOLO.mono, fontSize: 56, fontWeight: 500,
           letterSpacing: "-0.04em", color: secsLeft < 5 ? SOLO.danger : SOLO.fg, lineHeight: 1,
         }}>
-          {secsLeft.toFixed(1)}<span style={{ color: SOLO.fg4, fontSize: 32 }}>s</span>
+          {secsLeft.toFixed(1)}<s style={{ color: SOLO.fg4, fontSize: 32 }}>s</s>
         </div>
-        <div style={{
+        <div className="game-clip-label" style={{
           position: "absolute", top: 28, left: 40,
           fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3,
           letterSpacing: "0.14em", textTransform: "uppercase",
@@ -372,9 +372,9 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
           Name the anime. ↵ to submit.
         </div>
       </div>
-      <div style={{ padding: "0 40px 32px", position: "relative" }}>
+      <div className="game-input" style={{ padding: "0 40px 32px", position: "relative" }}>
         {suggestions.length > 0 && (
-          <div style={{
+          <div className="game-suggs" style={{
             position: "absolute", bottom: "100%", left: 40, right: 40,
             background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 10,
             marginBottom: 8, overflow: "hidden",
@@ -463,7 +463,7 @@ function RevealScreen({ result, run }: { result: SoloAnswerResponse; run: SoloRu
             {correct ? `Correct · ${formatResponseMs(result.round_result.your_response_ms)}` : "Time's up · 20.0s"}
           </Eyebrow>
         </div>
-        <div style={{
+        <div className="reveal-card" style={{
           display: "grid", gridTemplateColumns: "auto 1fr", gap: 40, maxWidth: 880,
           background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 14,
           padding: 36, position: "relative", overflow: "hidden",
@@ -473,7 +473,7 @@ function RevealScreen({ result, run }: { result: SoloAnswerResponse; run: SoloRu
             border: `1px solid ${correct ? SOLO.ok : SOLO.danger}55`,
             boxShadow: `0 0 40px ${correct ? SOLO.ok : SOLO.danger}33, inset 0 0 60px ${correct ? SOLO.ok : SOLO.danger}0a`,
           }} />
-          <div style={{
+          <div className="reveal-cover" style={{
             width: 200, height: 280, borderRadius: 8, background: SOLO.bg3,
             border: `1px solid ${SOLO.line2}`,
             backgroundImage: op?.anime?.cover_image_url ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 14px, #221c33 14px 15px)`,
@@ -489,7 +489,7 @@ function RevealScreen({ result, run }: { result: SoloAnswerResponse; run: SoloRu
             <div style={{ fontFamily: SOLO.mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: correct ? SOLO.ok : SOLO.danger, marginBottom: 10 }}>
               {correct ? `✓ ${op?.title ?? "—"}` : "✕ The answer was"}
             </div>
-            <h2 style={{ margin: 0, fontFamily: SOLO.sans, fontWeight: 800, fontSize: correct ? 56 : 48, letterSpacing: "-0.04em", lineHeight: 0.95, color: SOLO.fg }}>
+            <h2 className="reveal-headline" style={{ margin: 0, fontFamily: SOLO.sans, fontWeight: 800, fontSize: correct ? 56 : 48, letterSpacing: "-0.04em", lineHeight: 0.95, color: SOLO.fg }}>
               {correct ? op?.anime?.name ?? "—" : op?.title ?? "—"}
             </h2>
             <div style={{ fontFamily: SOLO.sans, fontSize: 17, color: SOLO.fg2, marginTop: 6 }}>
@@ -497,7 +497,7 @@ function RevealScreen({ result, run }: { result: SoloAnswerResponse; run: SoloRu
                 ? <>{op?.anime?.name ?? ""}</>
                 : <>from <em style={{ fontStyle: "normal", color: SOLO.accent }}>{op?.anime?.name ?? "—"}</em></>}
             </div>
-            <div style={{ display: "flex", gap: 36, marginTop: 28, paddingTop: 22, borderTop: `1px dashed ${SOLO.line2}` }}>
+            <div className="reveal-stats" style={{ display: "flex", gap: 36, marginTop: 28, paddingTop: 22, borderTop: `1px dashed ${SOLO.line2}` }}>
               <StatCell value={correct ? `+${result.round_result.score_delta}` : "+0"} label="score" color={correct ? SOLO.ok : SOLO.danger} />
               <StatCell value={formatResponseMs(result.round_result.your_response_ms)} label="your time" />
               <StatCell value={formatResponseMs(result.round_result.avg_player_response_ms)} label="avg player" />
@@ -535,8 +535,8 @@ function RunEndScreen({ run, summary, user }: { run: SoloRun; summary: SoloRunSu
 
   return (
     <div style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "100%", fontFamily: SOLO.sans }}>
-      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "48px 40px 64px" }}>
-        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", paddingBottom: 28, borderBottom: `1px solid ${SOLO.line}` }}>
+      <div className="game-end-page" style={{ maxWidth: 1120, margin: "0 auto", padding: "48px 40px 64px" }}>
+        <header className="game-end-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", paddingBottom: 28, borderBottom: `1px solid ${SOLO.line}` }}>
           <div>
             <Eyebrow color={SOLO.danger} dotColor={SOLO.danger}>Run over · all lives spent</Eyebrow>
             <h1 style={{ margin: "14px 0 0", fontFamily: SOLO.sans, fontWeight: 800, fontSize: 88, letterSpacing: "-0.05em", lineHeight: 0.9 }}>
@@ -546,7 +546,7 @@ function RunEndScreen({ run, summary, user }: { run: SoloRun; summary: SoloRunSu
               {user ? `Run as ${user.display_name}.` : "Anonymous run."} Longest streak this run: {summary.longest_streak}.
             </p>
           </div>
-          <div style={{ display: "flex", gap: 12 }}>
+          <div className="game-end-actions" style={{ display: "flex", gap: 12 }}>
             <Link href="/play/run" style={{
               background: SOLO.accent, color: SOLO.bg, border: "none", borderRadius: 8,
               padding: "14px 22px", fontWeight: 600, fontSize: 14, cursor: "pointer",
@@ -565,7 +565,7 @@ function RunEndScreen({ run, summary, user }: { run: SoloRun; summary: SoloRunSu
           </div>
         </header>
 
-        <section style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, marginTop: 32 }}>
+        <section className="game-end-grid" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 20, marginTop: 32 }}>
           <div style={{ background: SOLO.bg2, border: `1px solid ${SOLO.line}`, borderRadius: 12, padding: 28 }}>
             <Eyebrow>This run · by mode</Eyebrow>
             {summary.by_mode.length === 0 && (

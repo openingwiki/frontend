@@ -5,6 +5,7 @@ import Topbar from "./Topbar";
 import Rolebar from "./Rolebar";
 import Footer from "./Footer";
 import EmailVerificationBanner from "./EmailVerificationBanner";
+import MobileNav from "./MobileNav";
 
 interface Props {
   children: ReactNode;
@@ -26,14 +27,15 @@ export default function Layout({
       <Head>
         <title>{title}</title>
         <meta name="description" content={description} />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </Head>
       <Topbar user={user} />
       <EmailVerificationBanner user={user} />
       <Rolebar user={user} modQueueCount={modQueueCount} />
-      {children}
+      <div className="page-body">{children}</div>
       <Footer />
+      <MobileNav user={user} modQueueCount={modQueueCount} />
     </>
   );
 }

@@ -54,8 +54,8 @@ export default function NewBattle({ user, modQueueCount }: Props) {
   return (
     <Layout user={user} modQueueCount={modQueueCount} title="New battle — Opening Wiki">
       <Head><meta name="description" content="Open a 1v1 PvP lobby." /></Head>
-      <div style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "36px 40px 48px" }}>
+      <div data-mobile-pvp-new style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
+        <div className="solo-page" style={{ maxWidth: 1120, margin: "0 auto", padding: "36px 40px 48px" }}>
           <nav style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, letterSpacing: "0.04em", marginBottom: 14, display: "flex", gap: 6, alignItems: "center" }}>
             <Link href="/play" style={{ color: SOLO.fg2, textDecoration: "none" }}>Play</Link>
             <span style={{ color: SOLO.fg4 }}>/</span>
@@ -68,13 +68,13 @@ export default function NewBattle({ user, modQueueCount }: Props) {
             1v1 race · configure → invite → play
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 28 }}>
+          <div className="pvp-grid" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 28 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <label style={{ fontFamily: SOLO.mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: SOLO.fg3 }}>
                   Format <span style={{ color: SOLO.accent }}>*</span>
                 </label>
-                <div style={{ display: "flex", border: `1px solid ${SOLO.line2}`, borderRadius: 8, background: SOLO.bg2, padding: 4, gap: 2 }}>
+                <div className="pvp-format" style={{ display: "flex", border: `1px solid ${SOLO.line2}`, borderRadius: 8, background: SOLO.bg2, padding: 4, gap: 2 }}>
                   {FORMATS.map((f) => {
                     const on = f.value === format;
                     return (
@@ -136,7 +136,7 @@ export default function NewBattle({ user, modQueueCount }: Props) {
               )}
             </div>
 
-            <aside style={{
+            <aside className="pvp-sidebar" style={{
               position: "sticky", top: 80, background: SOLO.bg2, border: `1px solid ${SOLO.line2}`,
               borderRadius: 10, padding: 22, alignSelf: "start",
             }}>

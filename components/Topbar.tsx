@@ -20,12 +20,24 @@ const ME_SUBMISSIONS_ITEM: NavItem = {
   match: (p: string) => p.startsWith("/my-submissions"),
 };
 
+const MENU_ICON = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h10" />
+  </svg>
+);
+
 export default function Topbar({ user }: Props) {
   const { pathname } = useRouter();
   // Slot "My submissions" between Play and Groups for authenticated
   // users so it sits next to the other gameplay-adjacent entries
   // rather than buried inside the avatar menu.
   const nav = user ? [...BASE_NAV.slice(0, 2), ME_SUBMISSIONS_ITEM, ...BASE_NAV.slice(2)] : BASE_NAV;
+
+  const openDrawer = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("mobile-drawer-open"));
+    }
+  };
 
   return (
     <header className="topbar">
@@ -70,6 +82,17 @@ export default function Topbar({ user }: Props) {
             </>
           )}
         </div>
+
+        {/* Mobile-only hamburger — opens the MobileNav drawer. Hidden via CSS
+            on viewports > 720px where the standard nav links + avatar suffice. */}
+        <button
+          type="button"
+          className="topbar-menu"
+          aria-label="Open menu"
+          onClick={openDrawer}
+        >
+          {MENU_ICON}
+        </button>
       </div>
     </header>
   );
