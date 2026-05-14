@@ -3475,8 +3475,34 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   [data-mobile-game] .game-stage {
     padding: 20px 16px !important;
   }
+  /* Mode reveal title ("AUDIO", "VISUAL", "LYRICS"…). The desktop sizes
+     are 200px (Solo) / 160px (PvP); on a 360-414px phone either of
+     those overflows the side gutters. `clamp(48px, 16vw, 88px)` scales
+     to viewport width while staying readable — ~58px on a 360px phone
+     (which fits even longer mode names) climbing to 88px on tablets.
+     `overflow-wrap: anywhere` is a safety net for any future mode word
+     that would still overshoot. */
   [data-mobile-game] .game-mode-big {
-    font-size: 96px !important;
+    font-size: clamp(48px, 16vw, 88px) !important;
+    letter-spacing: -0.04em !important;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* PvP reveal stage uses inline `padding: 80px 40px` — 80px of
+     horizontal gutter eats half the screen on narrow phones. Tighten
+     to match the rest of the mobile chrome. */
+  [data-mobile-game] .pvp-reveal-stage {
+    padding: 32px 16px !important;
+  }
+  [data-mobile-game] .pvp-reveal-desc {
+    font-size: 14px !important;
+    margin-top: 16px !important;
+  }
+  [data-mobile-game] .pvp-reveal-countdown {
+    font-size: 88px !important;
+    margin-top: 36px !important;
   }
   [data-mobile-game] .game-clip-time {
     font-size: 40px !important;
