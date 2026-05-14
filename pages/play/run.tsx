@@ -32,7 +32,7 @@ type Phase =
   | { kind: "starting" }
   | { kind: "mode-reveal"; countdownMs: number; round: SoloRound; run: SoloRun }
   | { kind: "in-match"; round: SoloRound; run: SoloRun; clipPlayedMs: number }
-  | { kind: "reveal"; result: SoloAnswerResponse; nextAt: number; run: SoloRun }
+  | { kind: "reveal"; result: SoloAnswerResponse; nextAt: number; run: SoloRun; timedOut: boolean }
   | { kind: "ended"; run: SoloRun; summary: SoloRunSummary }
   | { kind: "error"; message: string };
 
@@ -165,7 +165,18 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
         anime_id: animeId,
         client_response_ms: Date.now() - inMatchStart.current,
       });
-      setPhase({ kind: "reveal", result: response, nextAt: Date.now() + REVEAL_HOLD_MS, run: response.run });
+      // `animeId === null` only happens via the clip-timer's `submitTimeout`
+      // path — the user never had a chance to guess. Tracking it client-side
+      // lets the reveal screen distinguish a wrong submission ("Wrong · 4.2s")
+      // from an unanswered round ("Time's up · 20.0s"). Backend response
+      // doesn't carry a status flag yet.
+      setPhase({
+        kind: "reveal",
+        result: response,
+        nextAt: Date.now() + REVEAL_HOLD_MS,
+        run: response.run,
+        timedOut: animeId === null,
+      });
     } catch (err: any) {
       setPhase({ kind: "error", message: err?.message ?? "Failed to submit answer" });
     } finally {
@@ -198,7 +209,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
           />
         )}
         {phase.kind === "reveal" && (
-          <RevealScreen result={phase.result} run={phase.result.run} />
+          <RevealScreen result={phase.result} run={phase.result.run} timedOut={phase.timedOut} />
         )}
         {phase.kind === "ended" && (
           <RunEndScreen
@@ -473,18 +484,28 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
   );
 }
 
-function RevealScreen({ result, run }: { result: SoloAnswerResponse; run: SoloRun }) {
+function RevealScreen({ result, run, timedOut }: { result: SoloAnswerResponse; run: SoloRun; timedOut: boolean }) {
   const correct = result.round_result.correct;
   const op = result.round_result.correct_opening;
+  // Distinguish the three round outcomes in the eyebrow: a hit, an
+  // unanswered round (clip timer expired), or a submitted-but-wrong guess.
+  const eyebrowText = correct
+    ? `Correct · ${formatResponseMs(result.round_result.your_response_ms)}`
+    : timedOut
+      ? "Time's up · 20.0s"
+      : `Wrong · ${formatResponseMs(result.round_result.your_response_ms)}`;
   return (
     <>
-      <div style={{ position: "absolute", top: 60, left: 0, right: 0, bottom: 0, background: correct ? `${SOLO.ok}10` : `${SOLO.danger}0d`, pointerEvents: "none" }} />
+      {/* Page-wide tint covering the whole stage (including the topbar
+          and HUD) so the success/fail flash isn't visually clipped at
+          the top — previously `top: 60` left a purple strip up top. */}
+      <div style={{ position: "fixed", inset: 0, background: correct ? `${SOLO.ok}26` : `${SOLO.danger}26`, pointerEvents: "none", zIndex: 50 }} />
       <TimerBar pct={0.4} danger={!correct} />
       <Hud run={run} label={correct && result.round_result.life_regen ? "streak +1 · ♥+1" : correct ? "streak +1" : "streak reset"} />
       <div className="reveal-page" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
         <div className="reveal-eyebrow" style={{ position: "absolute", top: 30, left: 40 }}>
           <Eyebrow color={correct ? SOLO.ok : SOLO.danger} dotColor={correct ? SOLO.ok : SOLO.danger}>
-            {correct ? `Correct · ${formatResponseMs(result.round_result.your_response_ms)}` : "Time's up · 20.0s"}
+            {eyebrowText}
           </Eyebrow>
         </div>
         <div className="reveal-card" style={{

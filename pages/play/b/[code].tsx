@@ -843,7 +843,7 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
   return (
     <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column", position: "relative" }}>
       <MatchHud view={view} scoreOverride={result.score} />
-      <div style={{ position: "absolute", top: 60, left: 0, right: 0, bottom: 0, background: noScore ? `${SOLO.warn}08` : youWon ? `${SOLO.ok}10` : `${SOLO.danger}0d`, pointerEvents: "none" }} />
+      <div style={{ position: "fixed", inset: 0, background: noScore ? `${SOLO.warn}26` : youWon ? `${SOLO.ok}26` : `${SOLO.danger}26`, pointerEvents: "none", zIndex: 50 }} />
       <TimerBar pct={0.4} danger={oppWon} />
       <div className="reveal-page" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
         <div className="reveal-eyebrow" style={{ position: "absolute", top: 30, left: 40 }}>
