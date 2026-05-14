@@ -2992,7 +2992,14 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 .grp-strip-row {
   display: flex; gap: 10px;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
+  /* Tell iOS Safari to keep the horizontal pan smooth, and reserve the
+     touch axis so the parent body's `overflow-x: hidden` doesn't swallow
+     the chips' own pan gesture. */
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
   /* Negative inline margin + matching padding lets chips touch the screen
      edge while still scrolling smoothly. */
   margin: 0 calc(-1 * var(--pad));
@@ -3184,11 +3191,41 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
     overflow-x: hidden;
     padding-bottom: calc(var(--m-bottom) + env(safe-area-inset-bottom, 0));
   }
-  footer { padding-bottom: calc(var(--m-bottom) + env(safe-area-inset-bottom, 0)); }
+
+  /* Hide the global footer entirely on mobile — the "openings/endings/
+     OSTs/about/roadmap/moderation-policy/version" cluster is dead weight
+     above the bottom tab bar; the drawer covers everything you'd reach
+     from there. */
+  footer { display: none; }
+
+  /* The desktop search shows a "⌘K" key-cap hint — meaningless on a phone
+     and crowds the input. */
+  .search .kbd { display: none; }
 
   /* Groups: hide the desktop panel, reveal the chip strip. */
   .grp-panel-desktop { display: none; }
   .grp-strip { display: block; }
+
+  /* Without `minmax(0, 1fr)` the home grid's `auto` min-track lets any
+     non-shrinkable child push its column past the viewport — that's how
+     the sort trigger, submit button, contributors panel, and long singer
+     names "go off" the right edge. Force both the catalog column and the
+     side rail to be shrinkable. */
+  .page-grid, .page-grid-left { grid-template-columns: minmax(0, 1fr); }
+  .side, .side-left { min-width: 0; max-width: 100%; }
+  .panel, .auth-card, .submit-card { min-width: 0; max-width: 100%; }
+  .panel-head { min-width: 0; }
+  .panel-head > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* The sort popup defaults to `right: 0; min-width: 220px;` — that's
+     fine on desktop but on a narrow phone it can extend past the left
+     edge of the viewport, which with overflow-x: hidden simply gets
+     clipped (looking to the user like the dropdown is cut off). Anchor
+     it to viewport gutters instead so it always fits on screen. */
+  .sort-pop { left: var(--pad); right: var(--pad); min-width: 0; }
+  .sort-menu { min-width: 0; }
+  .sort-trigger { max-width: 100%; }
+  .sort-trigger-v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 }
 
 /* Touch-friendly typography + spacing tweaks below 720. The Home page,
