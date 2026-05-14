@@ -11,6 +11,7 @@ import {
   pvpClient,
   PvPSocket,
   type Frame,
+  type MatchStatus,
   type PvPMatchView,
   type RoundStartData,
   type RoundEndData,
@@ -64,6 +65,11 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 
 type Phase =
   | { kind: "lobby" }
+  // Page just loaded into a match that's already past the lobby
+  // (status === "countdown" | "playing"). The WS hasn't connected yet
+  // so we don't have a `round` to render; show a brief reconnect
+  // message instead of the wrong lobby UI.
+  | { kind: "rejoining" }
   | { kind: "countdown"; startsAtMs: number }
   | { kind: "reveal"; round: RoundStartData; countdownMs: number }
   | { kind: "playing"; round: RoundStartData; playedMs: number }
@@ -75,12 +81,29 @@ type Phase =
 const MODE_REVEAL_MS = 2000;
 const ROUND_END_HOLD_MS = 3500;
 
+// Pick the initial phase from the SSR `match.status` so a page refresh
+// mid-match doesn't flash the lobby for the time it takes the WS to
+// connect and replay current state.
+function initialPhaseFromStatus(status: MatchStatus | undefined): Phase {
+  switch (status) {
+    case "ended":
+      return { kind: "error", message: "This match has already ended." };
+    case "cancelled":
+    case "abandoned":
+      return { kind: "error", message: "This match is no longer active." };
+    case "countdown":
+    case "playing":
+      return { kind: "rejoining" };
+    case "lobby":
+    default:
+      return { kind: "lobby" };
+  }
+}
+
 export default function MatchPage({ user, modQueueCount, code, initial }: Props) {
   const router = useRouter();
   const [view, setView] = useState<PvPMatchView | null>(initial);
-  const [phase, setPhase] = useState<Phase>(initial?.match?.status === "ended"
-    ? { kind: "error", message: "This match has already ended." }
-    : { kind: "lobby" });
+  const [phase, setPhase] = useState<Phase>(initialPhaseFromStatus(initial?.match?.status));
   const [socketStatus, setSocketStatus] = useState<"connecting" | "open" | "closed">("connecting");
   // Running score across the whole match, keyed by user_id. Updated
   // on every round.end and the match.end frame so the in-match HUD
@@ -170,6 +193,12 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
           ready: p.ready,
           joined_at: prev.players.find((q) => q.user_id === p.user_id)?.joined_at ?? new Date().toISOString(),
         })) } : prev);
+        // If we landed on the page mid-match (status was "playing"/etc.
+        // on SSR) we're sitting in `rejoining`. Once the server confirms
+        // we're back in the lobby (e.g. the round ended while we were
+        // disconnected) we should fall through to the lobby UI rather
+        // than stay stuck on "Reconnecting…".
+        setPhase((p) => p.kind === "rejoining" ? initialPhaseFromStatus(d.status) : p);
         break;
       }
       case "match.countdown": {
@@ -322,6 +351,9 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       <Head><meta name="description" content="PvP battle." /></Head>
       <audio ref={audioRef} preload="auto" />
       <div data-mobile-pvp-lobby data-mobile-game style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
+        {phase.kind === "rejoining" && (
+          <CenterMessage text="Reconnecting to the match…" />
+        )}
         {phase.kind === "lobby" && (
           <LobbyView
             view={view}
@@ -333,6 +365,7 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
             onCancel={handleCancel}
             isHost={view.you_are === "host"}
             inviteUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/play/b/${view.match.room_code}`}
+            meUserId={user.id}
           />
         )}
         {phase.kind === "countdown" && (
@@ -388,13 +421,20 @@ function CenterMessage({ text, extra }: { text: string; extra?: React.ReactNode 
 }
 
 function LobbyView({
-  view, meReady, opponent, socketStatus, onReady, onLeave, onCancel, isHost, inviteUrl,
+  view, meReady, opponent, socketStatus, onReady, onLeave, onCancel, isHost, inviteUrl, meUserId,
 }: {
   view: PvPMatchView; meReady: boolean; opponent: any; socketStatus: string;
   onReady: () => void; onLeave: () => void; onCancel: () => void;
-  isHost: boolean; inviteUrl: string;
+  isHost: boolean; inviteUrl: string; meUserId: string;
 }) {
-  const me = view.players.find((p) => p.user_id === view.players.find((q) => q.seat === 1)?.user_id);
+  // Cards are seat-positioned (host left, guest right) and the "You"
+  // affordance follows the *viewer*, not the seat. The previous
+  // implementation picked the left card by "the player who isn't the
+  // opponent", which for the guest resolved to themselves but with the
+  // host's ready state — pressing ready as the guest never updated
+  // the visible card.
+  const hostPlayer = view.players.find((p) => p.seat === 1) ?? null;
+  const guestPlayer = view.players.find((p) => p.seat === 2) ?? null;
   const filled = view.players.length === 2 && opponent;
   const allReady = filled && view.players.every((p) => p.ready);
   const copyInvite = async () => {
@@ -429,25 +469,27 @@ function LobbyView({
         </div>
       </div>
 
-      {/* VS panel */}
+      {/* VS panel — left card is always the host (seat 1), right card is
+          always the guest (seat 2). The "You" / "Opponent" affordance
+          tracks the viewer via meUserId. */}
       <div className="vs-panel" style={{ marginTop: 32, display: "grid", gridTemplateColumns: "1fr 80px 1fr", gap: 0, alignItems: "stretch" }}>
         <PlayerCard
-          player={view.players.find((p) => p.user_id !== opponent?.user_id) ?? view.players[0]}
-          variant={isHost ? "you" : "opponent"}
-          label={isHost ? "You · host" : "Host"}
-          ready={view.players.find((p) => p.seat === 1)?.ready ?? false}
+          player={hostPlayer}
+          variant={hostPlayer?.user_id === meUserId ? "you" : "opponent"}
+          label={hostPlayer?.user_id === meUserId ? "You · host" : "Host"}
+          ready={hostPlayer?.ready ?? false}
         />
         <div className="vs-divider" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: SOLO.mono, fontWeight: 600, fontSize: 20, color: SOLO.fg3, letterSpacing: "0.14em", gap: 14 }}>
           <div className="vs-line" style={{ flex: 1, width: 1, background: `linear-gradient(180deg, transparent 0%, ${SOLO.line2} 50%, transparent 100%)` }} />
           <div style={{ padding: "8px 0" }}>VS</div>
           <div className="vs-line" style={{ flex: 1, width: 1, background: `linear-gradient(180deg, transparent 0%, ${SOLO.line2} 50%, transparent 100%)` }} />
         </div>
-        {opponent ? (
+        {guestPlayer ? (
           <PlayerCard
-            player={opponent}
-            variant={isHost ? "opponent" : "you"}
-            label={isHost ? "Opponent" : "You"}
-            ready={opponent.ready}
+            player={guestPlayer}
+            variant={guestPlayer.user_id === meUserId ? "you" : "opponent"}
+            label={guestPlayer.user_id === meUserId ? "You" : "Opponent"}
+            ready={guestPlayer.ready}
           />
         ) : (
           <EmptySlot />
