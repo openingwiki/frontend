@@ -775,7 +775,7 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
               background: "transparent", border: "none", outline: "none",
             }}
           />
-          <span style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "3px 8px", borderRadius: 4 }}>↵ submit</span>
+          <span className="game-submit-hint" style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "3px 8px", borderRadius: 4 }}>↵ submit</span>
         </div>
       </div>
     </div>

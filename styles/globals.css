@@ -3443,8 +3443,20 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   [data-mobile-game] .game-input input {
     font-size: 16px !important;
   }
+  /* The "↵ submit" key cap inside the search input is purely a desktop
+     keyboard hint and crowds the input on a phone (the user reports it
+     blocking the actual text). Hide it on mobile. */
+  [data-mobile-game] .game-submit-hint { display: none !important; }
+
+  /* The autocomplete is `position: absolute; bottom: 100%` so its top edge
+     moves up/down as the result count changes — on mobile this reads as
+     the page shaking. Cap the height with a max and let the rows scroll
+     inside, so the visible top edge stays near-stable across queries. */
   [data-mobile-game] .game-suggs {
     left: 16px !important; right: 16px !important;
+    max-height: 50vh !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
   }
   [data-mobile-game] .reveal-card {
     grid-template-columns: 1fr !important;

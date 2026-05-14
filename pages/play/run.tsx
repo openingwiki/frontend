@@ -44,6 +44,11 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
   // The browser-decoded audio element. We keep one across rounds so the
   // user-gesture autoplay grant carries over the run.
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Lock for in-flight submissions. We used to swap phase to "starting"
+  // here (which paints a centered "Loading run…" between in-match and
+  // reveal), but on mobile that one-frame flash reads as a page-shake.
+  // The ref keeps the in-match UI on screen until the reveal arrives.
+  const submittingRef = useRef(false);
 
   // 1. start run on mount. CSRF + session cookies already in scope.
   useEffect(() => {
@@ -138,19 +143,26 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
   }, []);
 
   const submitAnswer = useCallback(async (p: Phase & { kind: "in-match" }, animeId: string | null) => {
-    setPhase({ kind: "starting" });
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    // Pause audio immediately so the user gets feedback that the submit
+    // registered, but keep the in-match screen mounted — the reveal card
+    // replaces it directly once the response lands, no centered-loading
+    // flash in between.
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch { /* */ }
+    }
     try {
       const response = await playClient.submitAnswer(p.run.id, {
         round_token: p.round.round_token,
         anime_id: animeId,
         client_response_ms: Date.now() - inMatchStart.current,
       });
-      if (audioRef.current) {
-        try { audioRef.current.pause(); } catch { /* */ }
-      }
       setPhase({ kind: "reveal", result: response, nextAt: Date.now() + REVEAL_HOLD_MS, run: response.run });
     } catch (err: any) {
       setPhase({ kind: "error", message: err?.message ?? "Failed to submit answer" });
+    } finally {
+      submittingRef.current = false;
     }
   }, []);
 
@@ -442,7 +454,7 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
               background: "transparent", border: "none", outline: "none",
             }}
           />
-          <span style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "3px 8px", borderRadius: 4 }}>↵ submit</span>
+          <span className="game-submit-hint" style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "3px 8px", borderRadius: 4 }}>↵ submit</span>
         </div>
       </div>
     </>
