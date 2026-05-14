@@ -432,7 +432,15 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
             {suggestions.map((s, i) => (
               <div
                 key={s.id}
-                onClick={() => onSubmit(s.id)}
+                // pointerdown fires before the keyboard-close → viewport
+                // resize → click-cancellation cascade iOS Safari sometimes
+                // does when the user taps a suggestion. preventDefault()
+                // keeps the input focused so the keyboard stays put long
+                // enough for the submit to land.
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  onSubmit(s.id);
+                }}
                 onMouseEnter={() => setActiveIdx(i)}
                 style={{
                   display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
