@@ -147,6 +147,17 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
   }, [roundResults, code]);
   // Opponent-disconnect overlay state — see DisconnectInfo above.
   const [disconnect, setDisconnect] = useState<DisconnectInfo | null>(null);
+  // Set when audio.play() rejects (autoplay blocked) so the in-match
+  // UI can render a tap-to-resume button. The most common trigger is
+  // a fresh page load mid-match — no user gesture, browser refuses
+  // to autoplay the clip even though `round.snapshot` seeked correctly.
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const resumeAudio = useCallback(() => {
+    if (!audioRef.current) return;
+    audioRef.current.play()
+      .then(() => setAudioBlocked(false))
+      .catch(() => setAudioBlocked(true));
+  }, []);
   const sockRef = useRef<PvPSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -242,6 +253,39 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
         setPhase({ kind: "reveal", round: d, countdownMs: MODE_REVEAL_MS });
         break;
       }
+      case "round.snapshot": {
+        // Server is replaying the live round to a just-reconnected
+        // socket. PlayAtMs is in the past — skip the 2 s pre-clip
+        // reveal, seek the audio to (server_now - play_at_ms) ms in,
+        // and drop straight into the playing phase with the right
+        // remaining timer. We treat the snapshot as authoritative
+        // only when we don't already have a round in flight (the
+        // round.start handler is the normal path for fresh rounds).
+        const d = f.data as RoundStartData;
+        // Prefer the frame's `server_now_ms` over Date.now() so a
+        // small client-server clock skew doesn't poison the seek
+        // offset.
+        const serverNow = f.server_now_ms ?? Date.now();
+        setPhase((p) => {
+          if (p.kind === "playing" || p.kind === "reveal" || p.kind === "round-end") return p;
+          const elapsedMs = Math.max(0, serverNow - d.play_at_ms);
+          if (elapsedMs >= d.clip_duration_ms) return p; // round already over; wait for next round.start
+          // Start audio + seek. Autoplay may reject silently on a
+          // fresh page load; the in-match UI surfaces a tap-to-resume
+          // button (see PlayingView) so the user can recover.
+          if (audioRef.current) {
+            try {
+              audioRef.current.src = d.clip_url;
+              audioRef.current.currentTime = elapsedMs / 1000;
+              audioRef.current.play()
+                .then(() => setAudioBlocked(false))
+                .catch(() => setAudioBlocked(true));
+            } catch { setAudioBlocked(true); }
+          }
+          return { kind: "playing", round: d, playedMs: elapsedMs };
+        });
+        break;
+      }
       case "round.end": {
         const d = f.data as RoundEndData;
         if (d.score) setScore(d.score);
@@ -298,8 +342,10 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
         try {
           audioRef.current.src = r.clip_url;
           audioRef.current.currentTime = 0;
-          audioRef.current.play().catch(() => {});
-        } catch { /* */ }
+          audioRef.current.play()
+            .then(() => setAudioBlocked(false))
+            .catch(() => setAudioBlocked(true));
+        } catch { setAudioBlocked(true); }
       }
       setPhase({ kind: "playing", round: r, playedMs: 0 });
       return;
@@ -310,14 +356,17 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
     return () => clearTimeout(t);
   }, [phase]);
 
-  // Tick the clip timer.
-  const playingStartRef = useRef<number>(0);
+  // Tick the clip timer. Use the *initial* `playedMs` (0 for a fresh
+  // round.start → reveal → playing path; > 0 when resuming mid-round
+  // from `round.snapshot`) to derive a wall-clock anchor — both paths
+  // then advance from a consistent offset without needing the
+  // server's clock.
   useEffect(() => {
     if (phase.kind !== "playing") return;
-    playingStartRef.current = Date.now();
+    const startedAt = Date.now() - phase.playedMs;
     const id = setInterval(() => {
       setPhase((p) => p.kind === "playing"
-        ? { ...p, playedMs: Date.now() - playingStartRef.current }
+        ? { ...p, playedMs: Date.now() - startedAt }
         : p);
     }, 100);
     return () => clearInterval(id);
@@ -415,6 +464,8 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
             playedMs={phase.playedMs}
             meID={user.id}
             score={score}
+            audioBlocked={audioBlocked}
+            onResumeAudio={resumeAudio}
             onSubmit={(anime_id) => {
               sockRef.current?.submitAnswer(phase.round.round_id, anime_id, Date.now());
             }}
@@ -762,9 +813,11 @@ function MatchHud({ view, scoreOverride }: { view: PvPMatchView; scoreOverride?:
   );
 }
 
-function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }: {
+function PlayingView({ view, round, playedMs, meID, score, audioBlocked, onResumeAudio, onSubmit, onTyping }: {
   view: PvPMatchView; round: RoundStartData; playedMs: number; meID: string;
   score: Record<string, number>;
+  audioBlocked: boolean;
+  onResumeAudio: () => void;
   onSubmit: (anime_id: string) => void; onTyping: () => void;
 }) {
   // See run.tsx — keeps the fixed-bottom search bar above the on-screen
@@ -837,6 +890,30 @@ function PlayingView({ view, round, playedMs, meID, score, onSubmit, onTyping }:
         <div style={{ textAlign: "center", marginTop: 22, fontFamily: SOLO.sans, fontSize: 14, color: SOLO.fg3 }}>
           Name the anime. ↵ to submit.
         </div>
+        {audioBlocked && (
+          // Browsers block `audio.play()` without a user gesture, which
+          // happens on a mid-match refresh (the page was reloaded so the
+          // gesture is gone). Surface a one-tap recover so the user can
+          // hear the clip even though the snapshot already seeked to
+          // the right offset.
+          <button
+            type="button"
+            onClick={onResumeAudio}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              alignSelf: "center", margin: "14px auto 0",
+              background: SOLO.accent, color: SOLO.bg, border: 0,
+              borderRadius: 999, padding: "10px 18px",
+              fontFamily: SOLO.sans, fontSize: 14, fontWeight: 600,
+              boxShadow: `0 0 24px ${SOLO.accent}55`, cursor: "pointer",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12z"/>
+            </svg>
+            Tap to play audio
+          </button>
+        )}
       </div>
       <div className="game-input" style={{ padding: "0 40px 32px", position: "relative" }}>
         {suggestions.length > 0 && (
