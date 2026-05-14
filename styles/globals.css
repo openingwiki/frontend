@@ -3184,6 +3184,16 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
      entry with the unread-count badge. */
   .rolebar { display: none; }
 
+  /* PvP battle mode uses Layout, so MobileNav renders its bottom tab bar
+     (z:40, 78px tall) right over the fixed-position in-match search bar.
+     Hide the tab bar throughout the match flow (lobby + playing + end)
+     — each phase has its own back/leave controls, the user doesn't need
+     the global nav while in a game. Endless `run.tsx` already opts out
+     of Layout so it isn't affected, but the `:has()` selector matches
+     either case uniformly. */
+  body:has([data-mobile-game]) .mtabbar { display: none !important; }
+  body:has([data-mobile-game]) .page-body { padding-bottom: 0 !important; }
+
   /* A loose grid cell or a long nowrap string can push the page wider than
      the viewport on phones, especially on the openings tab where some
      anime/singer names are long enough to overflow `.op-meta`. Clamp the
