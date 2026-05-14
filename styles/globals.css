@@ -2960,3 +2960,478 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 
   .ms-crumb { padding: 20px 0 10px; flex-wrap: wrap; }
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   MOBILE — bottom tab bar, hamburger drawer, and responsive overrides that
+   bring the Twilight-mobile design into the existing Next pages. Active
+   below 720px; desktop layout stays untouched above that.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --m-top: 56px;
+  --m-bottom: 78px;
+  --bg-4: #261f37;
+}
+
+/* The Topbar hamburger is hidden by default; only the desktop nav shows. */
+.topbar-menu {
+  display: none;
+  width: 38px; height: 38px; border-radius: 10px;
+  align-items: center; justify-content: center;
+  color: var(--fg-2);
+  background: transparent;
+  transition: background .15s, color .15s;
+  margin-left: 6px;
+}
+.topbar-menu:hover, .topbar-menu:active { background: var(--bg-3); color: var(--fg); }
+
+/* Bottom tab bar — hidden by default, shown on mobile. */
+.mtabbar {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--m-bottom);
+  padding: 6px 6px 18px;
+  padding-bottom: calc(18px + env(safe-area-inset-bottom, 0));
+  height: calc(var(--m-bottom) + env(safe-area-inset-bottom, 0));
+  background: color-mix(in oklab, var(--bg) 92%, transparent);
+  backdrop-filter: blur(18px);
+  border-top: 1px solid var(--line);
+  grid-template-columns: repeat(4, 1fr);
+  z-index: 40;
+}
+.mtab {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px;
+  color: var(--fg-3); text-decoration: none;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
+  position: relative;
+}
+.mtab-ico { display: grid; place-items: center; }
+.mtab-ico svg { width: 22px; height: 22px; display: block; }
+.mtab.on { color: var(--fg); }
+.mtab.on::before {
+  content: ''; position: absolute; top: 0; width: 28px; height: 2px;
+  border-radius: 0 0 2px 2px; background: var(--accent);
+}
+
+/* Drawer + scrim — hidden by default. Slides in from the right on mobile. */
+.mscrim {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(6, 4, 14, 0.62);
+  backdrop-filter: blur(2px);
+  opacity: 0; pointer-events: none;
+  transition: opacity .2s;
+  display: none;
+}
+.mscrim.on { opacity: 1; pointer-events: auto; }
+
+.mdrawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: 84%; max-width: 340px;
+  background: var(--bg-2);
+  border-left: 1px solid var(--line);
+  z-index: 70;
+  transform: translateX(100%);
+  transition: transform .26s cubic-bezier(.2, .7, .3, 1);
+  display: none;
+  flex-direction: column;
+  box-shadow: -30px 0 60px rgba(0, 0, 0, 0.5);
+}
+.mdrawer.on { transform: translateX(0); }
+
+.mdrawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 22px 18px 16px;
+  border-bottom: 1px solid var(--line);
+  padding-top: calc(22px + env(safe-area-inset-top, 0));
+}
+.mdrawer-me {
+  display: flex; align-items: center; gap: 11px; min-width: 0;
+}
+.mdrawer-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #6e57d8);
+  color: var(--accent-ink);
+  display: grid; place-items: center;
+  font-weight: 700; font-size: 14px; letter-spacing: -0.02em;
+  flex-shrink: 0; overflow: hidden;
+}
+.mdrawer-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mdrawer-me-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mdrawer-me-name {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 600; font-size: 15px; letter-spacing: -0.01em; line-height: 1.15;
+}
+.mdrawer-me-sub {
+  font-family: var(--mono); font-size: 10px; color: var(--fg-3); letter-spacing: 0.06em;
+}
+.mdrawer-x {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: grid; place-items: center;
+  color: var(--fg-3);
+  background: transparent; border: 0; cursor: pointer;
+}
+.mdrawer-x:hover, .mdrawer-x:active { background: var(--bg-3); color: var(--fg); }
+
+.mdrawer-nav { padding: 10px 0; flex: 1; overflow-y: auto; }
+.mdrawer-section {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--fg-4);
+  padding: 16px 18px 8px;
+}
+.mdrawer-nav a {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 18px; color: var(--fg);
+  font-size: 14.5px; letter-spacing: -0.005em;
+  text-decoration: none;
+  transition: background .12s;
+}
+.mdrawer-nav a:active { background: var(--bg-3); }
+.mdrawer-ico {
+  width: 22px; display: grid; place-items: center;
+  color: var(--fg-3);
+}
+.mdrawer-nav a.cur { color: var(--accent); }
+.mdrawer-nav a.cur .mdrawer-ico { color: var(--accent); }
+.mdrawer-badge {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 10px;
+  background: var(--accent); color: var(--accent-ink);
+  padding: 2px 7px; border-radius: 3px; font-weight: 600;
+}
+.mdrawer-foot {
+  padding: 14px 18px 22px;
+  padding-bottom: calc(22px + env(safe-area-inset-bottom, 0));
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 10px; color: var(--fg-4);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.mdrawer-foot a { color: var(--fg-3); }
+
+/* Activate mobile chrome at ≤ 720px and tune the layout. */
+@media (max-width: 720px) {
+  .mtabbar { display: grid; }
+  .mscrim { display: block; }
+  .mdrawer { display: flex; }
+  .topbar-menu { display: inline-flex; }
+
+  /* Hide the desktop "Submit / Avatar / Log in / Sign up" cluster on
+     mobile — the hamburger drawer carries those actions. */
+  .top-right { display: none; }
+  .nav { display: none; }
+  .topbar-inner { justify-content: space-between; height: 56px; }
+
+  /* Push content above the bottom tab bar so the last item isn't hidden. */
+  .page-body {
+    padding-bottom: calc(var(--m-bottom) + env(safe-area-inset-bottom, 0));
+  }
+  footer { padding-bottom: calc(var(--m-bottom) + env(safe-area-inset-bottom, 0)); }
+}
+
+/* Touch-friendly typography + spacing tweaks below 720. The Home page,
+   Play hub, and most form-style screens benefit from these alone. */
+@media (max-width: 720px) {
+  :root { --pad: 16px; }
+
+  /* Home / catalogue head */
+  .head { padding: 22px 0 8px; }
+  .head h1 { font-size: 32px; letter-spacing: -0.035em; line-height: 1.02; margin: 0 0 8px; }
+  .head p { font-size: 11px; margin: 0 0 18px; }
+  .search { padding: 12px 14px; border-radius: 10px; gap: 10px; }
+  .search input { font-size: 15px; }
+
+  /* Catalog tabs become a tighter segmented control on mobile. */
+  .cat-tabs {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    padding: 4px; border-radius: 10px;
+    margin: 12px 0 0;
+  }
+  .cat-tab {
+    border-radius: 7px; padding: 9px 6px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    border-bottom: 0 !important;
+    background: transparent !important;
+  }
+  .cat-tab.on { background: var(--bg-4) !important; }
+  .cat-tab-label { font-size: 13px; flex-direction: column; gap: 2px; align-items: center; }
+  .cat-tab-count { font-size: 10px; }
+  .cat-tab-sub { display: none; }
+
+  /* Sort bar gets tighter padding on small screens. */
+  .sort-bar { padding: 14px 0 10px; font-size: 11px; gap: 8px; }
+  .sort-pop { right: 0; left: auto; min-width: 200px; }
+
+  /* The page-grid collapses to a single column (already covered by the
+     960px rule), but we need to flip the order: side rail moves below
+     pagination on mobile. */
+  .page-grid, .page-grid-left { gap: 22px; padding-bottom: 32px; }
+  .side, .side-left { gap: 18px; }
+
+  /* Catalogue cards become a horizontal row: thumb · meta — like the
+     mobile design's 132px thumb + info column. */
+  .cat { grid-template-columns: 1fr; gap: 14px; padding: 4px 0 16px; }
+  .op-card { display: grid; grid-template-columns: 132px 1fr; gap: 12px; align-items: center; }
+  .op-thumb { border-radius: 8px; }
+  .op-info { flex-direction: column; gap: 4px; align-items: stretch; }
+  .op-main { flex: none; }
+  .op-title { font-size: 15px; line-height: 1.2; margin: 0; -webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .op-meta { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .op-score { text-align: left; display: flex; align-items: baseline; gap: 8px; margin-top: 2px; }
+  .op-score .n { font-size: 15px; }
+  .op-score .n em { font-size: 10px; }
+  .op-score .ct { font-size: 11px; }
+  .op-play { display: none; }
+
+  /* Side panels become full-width cards stacked below the list. */
+  .panel { border-radius: 12px; }
+  .panel-head { padding: 12px 14px; font-size: 10px; }
+
+  /* Auth card / submit card */
+  .auth-card { padding: 18px; }
+  .submit-card { padding: 18px; }
+}
+
+/* Pagination on mobile — convert to "Prev / N of M / Next" trio. */
+@media (max-width: 720px) {
+  .pag { flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+  .pag button, .pag a { min-width: 38px; height: 34px; padding: 0 12px; }
+}
+
+/* ── PLAY hub mobile overrides ──────────────────────────────────────────── */
+@media (max-width: 720px) {
+  /* The hub uses inline styles (SOLO atoms). Wrap-tweak via attribute
+     selectors and globally-named inline styles isn't reachable, so we
+     rely on class hooks in the page React. Instead, scope these
+     overrides to a body-level page wrapper added below. */
+  [data-mobile-play-hub] .play-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+  [data-mobile-play-hub] .play-mode-card {
+    min-height: auto !important;
+    padding: 22px !important;
+  }
+  [data-mobile-play-hub] .play-mode-card h2 {
+    font-size: 28px !important;
+  }
+  [data-mobile-play-hub] .play-mode-card .play-mode-cta {
+    width: 100%;
+    justify-content: center;
+  }
+  [data-mobile-play-hub] .play-mode-card .play-mode-foot {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  [data-mobile-play-hub] .play-hub-head h1 {
+    font-size: 38px !important;
+    line-height: 1.02 !important;
+  }
+  [data-mobile-play-hub] .play-hub-head p {
+    font-size: 13.5px !important;
+  }
+  [data-mobile-play-hub] .play-hub-head {
+    padding-bottom: 24px !important;
+  }
+  [data-mobile-play-hub] .play-tournament-teaser {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  [data-mobile-play-hub] .solo-page {
+    padding: 22px 16px 32px !important;
+  }
+}
+
+/* ── ENDLESS hub mobile overrides ───────────────────────────────────────── */
+@media (max-width: 720px) {
+  [data-mobile-endless-hub] .solo-page {
+    padding: 22px 16px 32px !important;
+  }
+  [data-mobile-endless-hub] .endless-head {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+  [data-mobile-endless-hub] .endless-head h1 {
+    font-size: 36px !important;
+    line-height: 1.02 !important;
+  }
+  [data-mobile-endless-hub] .endless-hero {
+    padding: 24px !important;
+    min-height: auto !important;
+  }
+  [data-mobile-endless-hub] .endless-hero h2 {
+    font-size: 28px !important;
+  }
+  [data-mobile-endless-hub] .endless-hero-foot {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  [data-mobile-endless-hub] .endless-hero-foot > a {
+    justify-content: center;
+    width: 100%;
+  }
+  [data-mobile-endless-hub] .endless-stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+  [data-mobile-endless-hub] .endless-stats-grid > div {
+    padding: 18px !important;
+  }
+}
+
+/* ── PvP NEW (Battle setup) mobile overrides ────────────────────────────── */
+@media (max-width: 720px) {
+  [data-mobile-pvp-new] .solo-page {
+    padding: 22px 16px 32px !important;
+  }
+  [data-mobile-pvp-new] .pvp-grid {
+    grid-template-columns: 1fr !important;
+  }
+  [data-mobile-pvp-new] .pvp-format {
+    flex-direction: column !important;
+  }
+  [data-mobile-pvp-new] .pvp-sidebar {
+    position: static !important;
+  }
+  [data-mobile-pvp-new] h1 {
+    font-size: 30px !important;
+  }
+}
+
+/* ── PvP Lobby mobile overrides ─────────────────────────────────────────── */
+@media (max-width: 720px) {
+  [data-mobile-pvp-lobby] .lobby-page {
+    padding: 22px 16px 32px !important;
+  }
+  [data-mobile-pvp-lobby] .lobby-head {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+  [data-mobile-pvp-lobby] .lobby-head h1 {
+    font-size: 28px !important;
+  }
+  [data-mobile-pvp-lobby] .vs-panel {
+    grid-template-columns: 1fr !important;
+  }
+  [data-mobile-pvp-lobby] .vs-panel .vs-divider {
+    flex-direction: row !important;
+    width: 100%;
+    height: 40px;
+    padding: 0 !important;
+  }
+  [data-mobile-pvp-lobby] .vs-panel .vs-divider .vs-line {
+    width: auto !important; flex: 1; height: 1px !important;
+    background: linear-gradient(90deg, transparent 0%, var(--line-2) 50%, transparent 100%) !important;
+  }
+  [data-mobile-pvp-lobby] .player-card {
+    min-height: auto !important;
+    padding: 22px !important;
+  }
+  [data-mobile-pvp-lobby] .lobby-cta {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+  }
+  [data-mobile-pvp-lobby] .lobby-cta-actions {
+    width: 100%;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  [data-mobile-pvp-lobby] .lobby-cta-actions button {
+    width: 100%;
+  }
+}
+
+/* ── GAME PAGES (Solo run, PvP match) — mobile ─────────────────────────── */
+@media (max-width: 720px) {
+  /* On the run pages the global Topbar/MobileNav are hidden — they have
+     their own arcade chrome that fills the viewport. The CSS we add
+     here makes the inline-styled phases readable on a phone. */
+  [data-mobile-game] .game-hud {
+    padding: 14px 16px !important;
+  }
+  [data-mobile-game] .game-stage {
+    padding: 20px 16px !important;
+  }
+  [data-mobile-game] .game-mode-big {
+    font-size: 96px !important;
+  }
+  [data-mobile-game] .game-clip-time {
+    font-size: 40px !important;
+    top: 12px !important; right: 16px !important;
+  }
+  [data-mobile-game] .game-clip-time s { font-size: 20px !important; }
+  [data-mobile-game] .game-clip-label {
+    top: 14px !important; left: 16px !important;
+    font-size: 10px !important;
+  }
+  [data-mobile-game] .game-input {
+    margin: 0 16px 22px !important;
+  }
+  [data-mobile-game] .game-input input {
+    font-size: 16px !important;
+  }
+  [data-mobile-game] .game-suggs {
+    left: 16px !important; right: 16px !important;
+  }
+  [data-mobile-game] .reveal-card {
+    grid-template-columns: 1fr !important;
+    gap: 18px !important;
+    padding: 22px !important;
+    margin: 0 16px !important;
+  }
+  [data-mobile-game] .reveal-cover {
+    width: 100% !important;
+    max-width: 180px;
+    height: auto !important;
+    aspect-ratio: 2 / 3;
+    justify-self: center;
+  }
+  [data-mobile-game] .reveal-headline {
+    font-size: 32px !important;
+  }
+  [data-mobile-game] .reveal-stats {
+    flex-wrap: wrap !important;
+    gap: 18px !important;
+  }
+  /* Solo-run end & match-end screens */
+  [data-mobile-game] .game-end-page {
+    padding: 24px 16px 32px !important;
+  }
+  [data-mobile-game] .game-end-head {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+  [data-mobile-game] .game-end-head h1 {
+    font-size: 48px !important;
+  }
+  [data-mobile-game] .game-end-grid {
+    grid-template-columns: 1fr !important;
+  }
+  [data-mobile-game] .game-end-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  [data-mobile-game] .game-end-actions > a {
+    width: 100%;
+    justify-content: center;
+  }
+  /* PvP HUD compresses a lot — names sit next to scores instead of
+     using 5 columns of space. */
+  [data-mobile-game] .pvp-hud {
+    gap: 8px !important;
+    padding: 12px !important;
+  }
+  [data-mobile-game] .pvp-hud .pvp-hud-name { display: none; }
+  [data-mobile-game] .pvp-hud .pvp-hud-mid {
+    padding: 0 8px !important;
+  }
+}
+
