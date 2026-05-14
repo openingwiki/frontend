@@ -49,6 +49,11 @@ export type FrameType =
   | "lobby.state"
   | "match.countdown"
   | "round.start"
+  // round.snapshot is the server's resync frame, sent to a single
+  // reconnecting socket so the client can resume the in-flight round
+  // (audio seeked to (now - play_at_ms) ms) instead of waiting until
+  // the current clip times out. Same payload shape as round.start.
+  | "round.snapshot"
   | "round.end"
   | "match.end"
   | "player.disconnected"
