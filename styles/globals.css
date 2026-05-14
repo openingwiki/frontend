@@ -2729,7 +2729,10 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   margin: 0 0 10px;
 }
 .ms-h1 em { font-style: normal; color: var(--accent); }
-.ms-sub { color: var(--fg-3); font-family: var(--mono); font-size: 12px; margin: 0; letter-spacing: 0.04em; }
+/* Header lede under "Your submissions." — kept on its own class so the
+   submission-row `.ms-sub` card styling further down doesn't bleed onto
+   this paragraph (it used to inherit the bordered card look). */
+.ms-head-sub { color: var(--fg-3); font-family: var(--mono); font-size: 12px; margin: 0; letter-spacing: 0.04em; }
 .ms-head-right { display: flex; gap: 8px; }
 
 .ms-filter-bar {
@@ -2992,7 +2995,14 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 .grp-strip-row {
   display: flex; gap: 10px;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
+  /* Tell iOS Safari to keep the horizontal pan smooth, and reserve the
+     touch axis so the parent body's `overflow-x: hidden` doesn't swallow
+     the chips' own pan gesture. */
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
   /* Negative inline margin + matching padding lets chips touch the screen
      edge while still scrolling smoothly. */
   margin: 0 calc(-1 * var(--pad));
@@ -3184,11 +3194,41 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
     overflow-x: hidden;
     padding-bottom: calc(var(--m-bottom) + env(safe-area-inset-bottom, 0));
   }
-  footer { padding-bottom: calc(var(--m-bottom) + env(safe-area-inset-bottom, 0)); }
+
+  /* Hide the global footer entirely on mobile — the "openings/endings/
+     OSTs/about/roadmap/moderation-policy/version" cluster is dead weight
+     above the bottom tab bar; the drawer covers everything you'd reach
+     from there. */
+  footer { display: none; }
+
+  /* The desktop search shows a "⌘K" key-cap hint — meaningless on a phone
+     and crowds the input. */
+  .search .kbd { display: none; }
 
   /* Groups: hide the desktop panel, reveal the chip strip. */
   .grp-panel-desktop { display: none; }
   .grp-strip { display: block; }
+
+  /* Without `minmax(0, 1fr)` the home grid's `auto` min-track lets any
+     non-shrinkable child push its column past the viewport — that's how
+     the sort trigger, submit button, contributors panel, and long singer
+     names "go off" the right edge. Force both the catalog column and the
+     side rail to be shrinkable. */
+  .page-grid, .page-grid-left { grid-template-columns: minmax(0, 1fr); }
+  .side, .side-left { min-width: 0; max-width: 100%; }
+  .panel, .auth-card, .submit-card { min-width: 0; max-width: 100%; }
+  .panel-head { min-width: 0; }
+  .panel-head > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* The sort popup defaults to `right: 0; min-width: 220px;` — that's
+     fine on desktop but on a narrow phone it can extend past the left
+     edge of the viewport, which with overflow-x: hidden simply gets
+     clipped (looking to the user like the dropdown is cut off). Anchor
+     it to viewport gutters instead so it always fits on screen. */
+  .sort-pop { left: var(--pad); right: var(--pad); min-width: 0; }
+  .sort-menu { min-width: 0; }
+  .sort-trigger { max-width: 100%; }
+  .sort-trigger-v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 }
 
 /* Touch-friendly typography + spacing tweaks below 720. The Home page,
@@ -3458,25 +3498,51 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
     overflow-y: auto !important;
     overscroll-behavior: contain;
   }
+  /* Reveal page outer container — desktop has inline `padding: 40` and
+     vertical centering, which on a 390px viewport eats 80px of horizontal
+     space and makes the card bounce vertically between in-match and
+     reveal. Pin to the top of the stage and tighten gutters. */
+  [data-mobile-game] .reveal-page {
+    padding: 12px 16px 16px !important;
+    align-items: flex-start !important;
+  }
+  [data-mobile-game] .reveal-eyebrow {
+    top: 12px !important;
+    left: 16px !important;
+  }
+
+  /* Compact reveal — matches the design's "song" card: 64px cover on the
+     left, info column on the right, stacked vertically beneath an
+     eyebrow. The previous mobile rule produced a 440px-tall card stacked
+     vertically; the in-match screen is only ~350px tall, so the swap
+     felt like the page was being shoved around. This compact form fits
+     in the stage area without forcing layout shifts. */
   [data-mobile-game] .reveal-card {
-    grid-template-columns: 1fr !important;
-    gap: 18px !important;
-    padding: 22px !important;
-    margin: 0 16px !important;
+    grid-template-columns: 64px minmax(0, 1fr) !important;
+    gap: 14px !important;
+    padding: 14px !important;
+    margin: 32px 0 0 !important;
+    align-items: start !important;
+    max-width: none !important;
   }
   [data-mobile-game] .reveal-cover {
-    width: 100% !important;
-    max-width: 180px;
-    height: auto !important;
-    aspect-ratio: 2 / 3;
-    justify-self: center;
+    width: 64px !important;
+    height: 90px !important;
+    max-width: none !important;
+    aspect-ratio: auto !important;
+    justify-self: auto !important;
   }
   [data-mobile-game] .reveal-headline {
-    font-size: 32px !important;
+    font-size: 22px !important;
+    line-height: 1.15 !important;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
   }
   [data-mobile-game] .reveal-stats {
     flex-wrap: wrap !important;
-    gap: 18px !important;
+    gap: 12px 18px !important;
+    margin-top: 12px !important;
+    padding-top: 12px !important;
   }
   /* Solo-run end & match-end screens */
   [data-mobile-game] .game-end-page {

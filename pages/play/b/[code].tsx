@@ -845,8 +845,8 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
       <MatchHud view={view} scoreOverride={result.score} />
       <div style={{ position: "absolute", top: 60, left: 0, right: 0, bottom: 0, background: noScore ? `${SOLO.warn}08` : youWon ? `${SOLO.ok}10` : `${SOLO.danger}0d`, pointerEvents: "none" }} />
       <TimerBar pct={0.4} danger={oppWon} />
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
-        <div style={{ position: "absolute", top: 30, left: 40 }}>
+      <div className="reveal-page" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
+        <div className="reveal-eyebrow" style={{ position: "absolute", top: 30, left: 40 }}>
           <Eyebrow color={accent} dotColor={accent}>{eyebrow}</Eyebrow>
         </div>
         <div className="reveal-card" style={{

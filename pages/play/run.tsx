@@ -41,6 +41,11 @@ const REVEAL_HOLD_MS = 3500;
 
 export default function SoloRunPage({ user, modQueueCount }: Props) {
   const [phase, setPhase] = useState<Phase>({ kind: "starting" });
+  // Bumped when the user clicks "Run again" so the start-run effect
+  // re-fires and a fresh run is requested. A plain `<Link href="/play/run">`
+  // doesn't work — Next.js treats it as same-route and skips the
+  // re-mount, leaving the component stuck on the ended phase.
+  const [runGen, setRunGen] = useState(0);
   // The browser-decoded audio element. We keep one across rounds so the
   // user-gesture autoplay grant carries over the run.
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -50,9 +55,11 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
   // The ref keeps the in-match UI on screen until the reveal arrives.
   const submittingRef = useRef(false);
 
-  // 1. start run on mount. CSRF + session cookies already in scope.
+  // 1. start run on mount, and again whenever runGen bumps.
   useEffect(() => {
     let abandoned = false;
+    setPhase({ kind: "starting" });
+    submittingRef.current = false;
     playClient.startRun()
       .then(({ run, round }) => {
         if (abandoned) return;
@@ -63,7 +70,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
         setPhase({ kind: "error", message: err.message ?? "Failed to start run" });
       });
     return () => { abandoned = true; };
-  }, []);
+  }, [runGen]);
 
   // 2. mode-reveal tick — counts down to 0, then drops us into in-match.
   useEffect(() => {
@@ -194,7 +201,12 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
           <RevealScreen result={phase.result} run={phase.result.run} />
         )}
         {phase.kind === "ended" && (
-          <RunEndScreen run={phase.run} summary={phase.summary} user={user} />
+          <RunEndScreen
+            run={phase.run}
+            summary={phase.summary}
+            user={user}
+            onRestart={() => setRunGen((g) => g + 1)}
+          />
         )}
       </div>
     </>
@@ -469,8 +481,8 @@ function RevealScreen({ result, run }: { result: SoloAnswerResponse; run: SoloRu
       <div style={{ position: "absolute", top: 60, left: 0, right: 0, bottom: 0, background: correct ? `${SOLO.ok}10` : `${SOLO.danger}0d`, pointerEvents: "none" }} />
       <TimerBar pct={0.4} danger={!correct} />
       <Hud run={run} label={correct && result.round_result.life_regen ? "streak +1 · ♥+1" : correct ? "streak +1" : "streak reset"} />
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
-        <div style={{ position: "absolute", top: 30, left: 40 }}>
+      <div className="reveal-page" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
+        <div className="reveal-eyebrow" style={{ position: "absolute", top: 30, left: 40 }}>
           <Eyebrow color={correct ? SOLO.ok : SOLO.danger} dotColor={correct ? SOLO.ok : SOLO.danger}>
             {correct ? `Correct · ${formatResponseMs(result.round_result.your_response_ms)}` : "Time's up · 20.0s"}
           </Eyebrow>
@@ -533,7 +545,7 @@ function StatCell({ value, label, color = SOLO.fg }: { value: string; label: str
   );
 }
 
-function RunEndScreen({ run, summary, user }: { run: SoloRun; summary: SoloRunSummary; user: User | null }) {
+function RunEndScreen({ run, summary, user, onRestart }: { run: SoloRun; summary: SoloRunSummary; user: User | null; onRestart: () => void }) {
   const lengthMs = useMemo(() => {
     const ended = run.ended_at ? new Date(run.ended_at).getTime() : Date.now();
     return ended - new Date(run.started_at).getTime();
@@ -559,17 +571,17 @@ function RunEndScreen({ run, summary, user }: { run: SoloRun; summary: SoloRunSu
             </p>
           </div>
           <div className="game-end-actions" style={{ display: "flex", gap: 12 }}>
-            <Link href="/play/run" style={{
+            <button onClick={onRestart} style={{
               background: SOLO.accent, color: SOLO.bg, border: "none", borderRadius: 8,
               padding: "14px 22px", fontWeight: 600, fontSize: 14, cursor: "pointer",
-              display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none",
+              display: "inline-flex", alignItems: "center", gap: 8, fontFamily: SOLO.sans,
               boxShadow: `0 0 30px ${SOLO.accent}55`,
             }}>
               Run again
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                 <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </Link>
+            </button>
             <Link href="/play/endless" style={{
               background: "transparent", border: `1px solid ${SOLO.line2}`, color: SOLO.fg2,
               borderRadius: 8, padding: "14px 22px", fontWeight: 500, fontSize: 14, textDecoration: "none",
@@ -606,9 +618,8 @@ function RunEndScreen({ run, summary, user }: { run: SoloRun; summary: SoloRunSu
                 </div>
               );
             })}
-            <div style={{ marginTop: 28, paddingTop: 22, borderTop: `1px dashed ${SOLO.line}`, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 20 }}>
+            <div style={{ marginTop: 28, paddingTop: 22, borderTop: `1px dashed ${SOLO.line}`, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
               <StatCell value={String(summary.longest_streak)} label="longest streak" />
-              <StatCell value={String(summary.lives_regen)} label="lives regen'd" />
               <StatCell value={lengthStr} label="run length" />
               <StatCell value={String(summary.score)} label="final score" color={SOLO.accent} />
             </div>
