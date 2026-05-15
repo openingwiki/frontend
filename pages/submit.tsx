@@ -551,17 +551,8 @@ function AnimePane() {
 // ---------------------------------------------------------------------------
 
 function SingerPane() {
-  const TYPES: { value: SingerType; label: string }[] = [
-    { value: "solo",              label: "Solo artist" },
-    { value: "band",              label: "Band" },
-    { value: "idol_group",        label: "Idol group" },
-    { value: "vocaloid_producer", label: "Vocaloid producer" },
-    { value: "composer",          label: "Composer" },
-    { value: "other",             label: "Other" },
-  ];
-
   const [f, setF] = useState({
-    name: "", type: "solo" as SingerType,
+    name: "", type: "other" as SingerType,
     reference_url: "",
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -675,7 +666,7 @@ function SingerPane() {
         <div className="sub-form-body" style={{ textAlign: "center", padding: "48px 26px" }}>
           <p style={{ fontSize: 16, marginBottom: 20 }}>Singer submitted for review ✓</p>
           <p className="hint" style={{ marginBottom: 24 }}>Once approved, they will appear in the singer picker on the Opening tab.</p>
-          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ name: "", type: "solo", reference_url: "" }); setCoverKey(""); setCoverPreviewUrl(null); }}>
+          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ name: "", type: "other", reference_url: "" }); setCoverKey(""); setCoverPreviewUrl(null); }}>
             Submit another
           </button>
         </div>
@@ -756,16 +747,7 @@ function SingerPane() {
             {fieldErrors.name && <span className="ferr">{fieldErrors.name}</span>}
           </div>
 
-          <div className="sub-section"><span className="sub-step">03</span> About</div>
-          <div className="sub-row">
-            <label>Type <span className="req">*</span></label>
-            <select value={f.type} onChange={set("type")}>
-              {TYPES.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-            </select>
-            {fieldErrors.type && <span className="ferr">{fieldErrors.type}</span>}
-          </div>
-
-          <div className="sub-section"><span className="sub-step">04</span> Verification</div>
+          <div className="sub-section"><span className="sub-step">03</span> Verification</div>
           <div className="sub-row">
             <label>Reference link <span className="req">*</span></label>
             <input type="url" value={f.reference_url} onChange={set("reference_url")} placeholder="Official site, Spotify, Wikipedia…" />
