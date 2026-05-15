@@ -655,6 +655,51 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
 .sub-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .sub-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
 
+/* Quick-import bar (AniList / Spotify) */
+.import-bar {
+  position: relative;
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  background: color-mix(in oklab, var(--accent) 6%, var(--bg-2));
+  border: 1px solid color-mix(in oklab, var(--accent) 25%, var(--line));
+  border-radius: 8px;
+}
+.import-bar-label {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 8px;
+}
+.import-bar-label svg { flex-shrink: 0; }
+.import-input-wrap {
+  position: relative; display: flex; align-items: center;
+}
+.import-input-wrap input {
+  width: 100%; background: var(--bg-3);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 32px 8px 10px; font-size: 13px; color: var(--fg);
+}
+.import-input-wrap input:focus { border-color: var(--accent); outline: none; }
+.import-spin {
+  position: absolute; right: 10px;
+  font-size: 14px; color: var(--fg-3);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.import-results {
+  position: absolute; left: 0; right: 0;
+  top: calc(100% + 4px); z-index: 50;
+  background: var(--bg-3); border: 1px solid var(--line);
+  border-radius: 8px; overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  max-height: 260px; overflow-y: auto;
+}
+.import-cover-status {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--fg-3); margin-top: 6px;
+  letter-spacing: 0.04em;
+}
+
 /* Autocomplete — matches design's .auto pattern */
 .auto { position: relative; }
 .auto-wrap {

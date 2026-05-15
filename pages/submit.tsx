@@ -1,6 +1,6 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/router";
 import Layout from "@/components/Layout";
 import Autocomplete, { type AutocompleteItem } from "@/components/Autocomplete";
@@ -270,6 +270,31 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Shared import-search types
+// ---------------------------------------------------------------------------
+
+interface AnilistResult {
+  id: string;
+  title_romaji: string;
+  title_english: string;
+  title_native: string;
+  year: number | null;
+  format: AnimeFormat;
+  episodes: number | null;
+  studio: string;
+  cover_url: string | null;
+  reference_url: string;
+}
+
+interface SpotifyResult {
+  id: string;
+  name: string;
+  cover_url: string | null;
+  reference_url: string;
+  genres: string[];
+}
+
+// ---------------------------------------------------------------------------
 // Anime form
 // ---------------------------------------------------------------------------
 
@@ -281,6 +306,10 @@ function AnimePane() {
     { value: "special", label: "Special" },
   ];
 
+  const FORMAT_LABELS: Record<AnimeFormat, string> = {
+    tv: "TV", film: "Film", ova_ona: "OVA/ONA", special: "Special",
+  };
+
   const [f, setF] = useState({
     title_english: "",
     year: "", format: "tv" as AnimeFormat,
@@ -290,10 +319,79 @@ function AnimePane() {
     setF((prev) => ({ ...prev, [k]: e.target.value }));
 
   const [coverKey, setCoverKey] = useState("");
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [coverImporting, setCoverImporting] = useState(false);
+  const [coverImportErr, setCoverImportErr] = useState<string | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
+
+  // AniList import search
+  const [importQuery, setImportQuery] = useState("");
+  const [importResults, setImportResults] = useState<AnilistResult[]>([]);
+  const [importSearching, setImportSearching] = useState(false);
+  const importTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const importWrapRef = useRef<HTMLDivElement>(null);
+
+  const handleImportSearch = (q: string) => {
+    setImportQuery(q);
+    if (importTimer.current) clearTimeout(importTimer.current);
+    if (!q.trim()) { setImportResults([]); return; }
+    importTimer.current = setTimeout(async () => {
+      setImportSearching(true);
+      try {
+        const res = await fetch(`/api/anilist/search?q=${encodeURIComponent(q)}`);
+        const payload = await res.json();
+        setImportResults(payload.data ?? []);
+      } catch {
+        setImportResults([]);
+      } finally {
+        setImportSearching(false);
+      }
+    }, 300);
+  };
+
+  const handleImportPick = async (item: AnilistResult) => {
+    setImportQuery("");
+    setImportResults([]);
+    setF({
+      title_english: item.title_english || item.title_romaji,
+      year: item.year ? String(item.year) : "",
+      format: item.format,
+      reference_url: item.reference_url,
+    });
+    if (item.cover_url) {
+      setCoverImporting(true);
+      setCoverImportErr(null);
+      try {
+        const res = await fetch("/api/uploads/cover-from-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: item.cover_url, entity_type: "anime" }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? "Cover import failed");
+        const { object_key, public_url } = await res.json();
+        setCoverKey(object_key);
+        setCoverPreviewUrl(public_url);
+      } catch (err) {
+        setCoverImportErr(err instanceof Error ? err.message : "Cover import failed");
+      } finally {
+        setCoverImporting(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (importWrapRef.current && !importWrapRef.current.contains(e.target as Node)) {
+        setImportResults([]);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -330,7 +428,7 @@ function AnimePane() {
         <div className="sub-form-body" style={{ textAlign: "center", padding: "48px 26px" }}>
           <p style={{ fontSize: 16, marginBottom: 20 }}>Anime submitted for review ✓</p>
           <p className="hint" style={{ marginBottom: 24 }}>Once a mod approves it, it will appear in the anime picker on the Opening tab.</p>
-          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ title_english: "", year: "", format: "tv", reference_url: "" }); setCoverKey(""); }}>
+          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ title_english: "", year: "", format: "tv", reference_url: "" }); setCoverKey(""); setCoverPreviewUrl(null); }}>
             Submit another
           </button>
         </div>
@@ -346,11 +444,60 @@ function AnimePane() {
         </div>
         <div className="sub-form-body">
 
+          <div className="import-bar" ref={importWrapRef}>
+            <div className="import-bar-label">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm-1-5h2v2h-2zm0-8h2v6h-2z"/></svg>
+              Quick import from AniList
+            </div>
+            <div className="import-input-wrap">
+              <input
+                type="text"
+                value={importQuery}
+                onChange={(e) => handleImportSearch(e.target.value)}
+                placeholder="Search anime name…"
+                autoComplete="off"
+              />
+              {importSearching && <span className="import-spin">↻</span>}
+            </div>
+            {importResults.length > 0 && (
+              <div className="import-results">
+                {importResults.map((item) => (
+                  <div
+                    key={item.id}
+                    className="auto-row"
+                    onMouseDown={() => handleImportPick(item)}
+                  >
+                    <div className="ic">
+                      {item.cover_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.cover_url} alt="" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="a-name">{item.title_english || item.title_romaji}</div>
+                      <div className="a-sub">
+                        {[item.year, FORMAT_LABELS[item.format]].filter(Boolean).join(" · ")}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {coverImporting && (
+              <div className="import-cover-status">Importing cover…</div>
+            )}
+            {coverImportErr && (
+              <div className="import-cover-status" style={{ color: "var(--danger)" }}>{coverImportErr}</div>
+            )}
+          </div>
+
           <div className="sub-section"><span className="sub-step">01</span> Cover image <span className="req">*</span></div>
           <CoverUpload
+            key={coverPreviewUrl ?? "empty"}
             entityType="anime"
             aspect="poster"
-            onUploaded={(key) => setCoverKey(key)}
+            initialPreviewUrl={coverPreviewUrl}
+            onUploaded={(key, url) => { setCoverKey(key); setCoverPreviewUrl(url || null); }}
           />
           {fieldErrors.cover_image_key && <span className="ferr">{fieldErrors.cover_image_key}</span>}
 
@@ -421,10 +568,78 @@ function SingerPane() {
     setF((prev) => ({ ...prev, [k]: e.target.value }));
 
   const [coverKey, setCoverKey] = useState("");
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [coverImporting, setCoverImporting] = useState(false);
+  const [coverImportErr, setCoverImportErr] = useState<string | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState(false);
+
+  // Spotify import search
+  const [importQuery, setImportQuery] = useState("");
+  const [importResults, setImportResults] = useState<SpotifyResult[]>([]);
+  const [importSearching, setImportSearching] = useState(false);
+  const importTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const importWrapRef = useRef<HTMLDivElement>(null);
+
+  const handleImportSearch = (q: string) => {
+    setImportQuery(q);
+    if (importTimer.current) clearTimeout(importTimer.current);
+    if (!q.trim()) { setImportResults([]); return; }
+    importTimer.current = setTimeout(async () => {
+      setImportSearching(true);
+      try {
+        const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(q)}`);
+        const payload = await res.json();
+        setImportResults(payload.data ?? []);
+      } catch {
+        setImportResults([]);
+      } finally {
+        setImportSearching(false);
+      }
+    }, 300);
+  };
+
+  const handleImportPick = async (item: SpotifyResult) => {
+    setImportQuery("");
+    setImportResults([]);
+    setF((prev) => ({
+      ...prev,
+      name: item.name,
+      reference_url: item.reference_url,
+    }));
+    if (item.cover_url) {
+      setCoverImporting(true);
+      setCoverImportErr(null);
+      try {
+        const res = await fetch("/api/uploads/cover-from-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: item.cover_url, entity_type: "singer" }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? "Photo import failed");
+        const { object_key, public_url } = await res.json();
+        setCoverKey(object_key);
+        setCoverPreviewUrl(public_url);
+      } catch (err) {
+        setCoverImportErr(err instanceof Error ? err.message : "Photo import failed");
+      } finally {
+        setCoverImporting(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (importWrapRef.current && !importWrapRef.current.contains(e.target as Node)) {
+        setImportResults([]);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -460,7 +675,7 @@ function SingerPane() {
         <div className="sub-form-body" style={{ textAlign: "center", padding: "48px 26px" }}>
           <p style={{ fontSize: 16, marginBottom: 20 }}>Singer submitted for review ✓</p>
           <p className="hint" style={{ marginBottom: 24 }}>Once approved, they will appear in the singer picker on the Opening tab.</p>
-          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ name: "", type: "solo", reference_url: "" }); setCoverKey(""); }}>
+          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ name: "", type: "solo", reference_url: "" }); setCoverKey(""); setCoverPreviewUrl(null); }}>
             Submit another
           </button>
         </div>
@@ -476,11 +691,60 @@ function SingerPane() {
         </div>
         <div className="sub-form-body">
 
+          <div className="import-bar" ref={importWrapRef}>
+            <div className="import-bar-label">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+              Quick import from Spotify
+            </div>
+            <div className="import-input-wrap">
+              <input
+                type="text"
+                value={importQuery}
+                onChange={(e) => handleImportSearch(e.target.value)}
+                placeholder="Search artist name…"
+                autoComplete="off"
+              />
+              {importSearching && <span className="import-spin">↻</span>}
+            </div>
+            {importResults.length > 0 && (
+              <div className="import-results">
+                {importResults.map((item) => (
+                  <div
+                    key={item.id}
+                    className="auto-row"
+                    onMouseDown={() => handleImportPick(item)}
+                  >
+                    <div className="ic circle">
+                      {item.cover_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.cover_url} alt="" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="a-name">{item.name}</div>
+                      {item.genres.length > 0 && (
+                        <div className="a-sub">{item.genres.slice(0, 2).join(", ")}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {coverImporting && (
+              <div className="import-cover-status">Importing photo…</div>
+            )}
+            {coverImportErr && (
+              <div className="import-cover-status" style={{ color: "var(--danger)" }}>{coverImportErr}</div>
+            )}
+          </div>
+
           <div className="sub-section"><span className="sub-step">01</span> Photo <span className="req">*</span></div>
           <CoverUpload
+            key={coverPreviewUrl ?? "empty"}
             entityType="singer"
             aspect="square"
-            onUploaded={(key) => setCoverKey(key)}
+            initialPreviewUrl={coverPreviewUrl}
+            onUploaded={(key, url) => { setCoverKey(key); setCoverPreviewUrl(url || null); }}
           />
           {fieldErrors.cover_image_key && <span className="ferr">{fieldErrors.cover_image_key}</span>}
 
