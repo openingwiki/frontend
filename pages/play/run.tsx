@@ -29,16 +29,40 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 
 // Run-flow state machine. Each phase is a distinct screen and only one
 // is in-DOM at a time.
+//
+// mode-reveal and in-match phases carry a `clockOffsetMs` snapshot —
+// the (serverNow - clientNow) difference computed when the round
+// payload was received. Both phases then derive their visible
+// countdown from server-anchored timestamps (play_at_ms, expires_at_ms)
+// minus the client's current Date.now(), corrected by the offset.
+// This is what makes the timer reload-safe: the next render after a
+// reload re-derives the same remaining time off the server clock, so
+// you can't refresh to reset the timer.
 type Phase =
   | { kind: "starting" }
-  | { kind: "mode-reveal"; countdownMs: number; round: SoloRound; run: SoloRun }
-  | { kind: "in-match"; round: SoloRound; run: SoloRun; clipPlayedMs: number }
+  | { kind: "mode-reveal"; tick: number; round: SoloRound; run: SoloRun; clockOffsetMs: number }
+  | { kind: "in-match"; tick: number; round: SoloRound; run: SoloRun; clockOffsetMs: number; audioStarted: boolean }
   | { kind: "reveal"; result: SoloAnswerResponse; nextAt: number; run: SoloRun; timedOut: boolean }
   | { kind: "ended"; run: SoloRun; summary: SoloRunSummary }
+  // library-cleared: distinct from ended. Triggered when the run ends
+  // because the player answered every opening in the catalog. Renders
+  // a celebration screen instead of the regular run-over summary.
+  | { kind: "library-cleared"; run: SoloRun; summary: SoloRunSummary }
   | { kind: "error"; message: string };
 
-const MODE_REVEAL_MS = 2000;
 const REVEAL_HOLD_MS = 3500;
+
+// serverNow returns the server's current UTC ms, derived from the
+// captured clock offset. Stays accurate even after Date.now() drifts.
+function serverNow(clockOffsetMs: number) {
+  return Date.now() + clockOffsetMs;
+}
+
+// clockOffsetFor captures the offset at the moment a round payload
+// arrives: serverNow - clientNow. Future reads use serverNow() above.
+function clockOffsetFor(round: SoloRound) {
+  return round.server_now_ms - Date.now();
+}
 
 export default function SoloRunPage({ user, modQueueCount }: Props) {
   const [phase, setPhase] = useState<Phase>({ kind: "starting" });
@@ -56,67 +80,117 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
   // The ref keeps the in-match UI on screen until the reveal arrives.
   const submittingRef = useRef(false);
 
-  // 1. start run on mount, and again whenever runGen bumps.
+  // 1. On mount, try to resume an in-flight run first; only start a
+  // fresh one if there's no active run on the server. This is what
+  // closes the reload-skip-countdown abuse path: a reload during the
+  // inter-round wait now re-derives the same round + same server
+  // anchors instead of dumping the run and getting a fresh 2s
+  // mode-reveal. runGen bump (from "Run again") explicitly skips the
+  // resume and goes straight to start.
   useEffect(() => {
     let abandoned = false;
     setPhase({ kind: "starting" });
     submittingRef.current = false;
-    playClient.startRun()
-      .then(({ run, round }) => {
+    const start = async () => {
+      try {
+        if (runGen === 0) {
+          const current = await playClient.currentRun();
+          if (current?.current_round) {
+            if (abandoned) return;
+            const round = current.current_round;
+            // Already past the deadline? Send a timeout-null answer
+            // so the server resolves the round; then the response
+            // carries the next round and we slide into reveal.
+            const now = round.server_now_ms + (Date.now() - round.server_now_ms);
+            if (round.expires_at_ms <= now) {
+              try {
+                const response = await playClient.submitAnswer(current.run.id, {
+                  round_token: round.round_token,
+                  anime_id: null,
+                  client_response_ms: round.clip_duration_ms,
+                });
+                if (abandoned) return;
+                setPhase({
+                  kind: "reveal",
+                  result: response,
+                  nextAt: Date.now() + REVEAL_HOLD_MS,
+                  run: response.run,
+                  timedOut: true,
+                });
+                return;
+              } catch {
+                // Fall through to starting fresh if the timeout
+                // submit fails (e.g. round already resolved).
+              }
+            }
+            setPhase({ kind: "mode-reveal", tick: 0, round, run: current.run, clockOffsetMs: clockOffsetFor(round) });
+            return;
+          }
+        }
+        const { run, round } = await playClient.startRun();
         if (abandoned) return;
-        setPhase({ kind: "mode-reveal", countdownMs: MODE_REVEAL_MS, round, run });
-      })
-      .catch((err) => {
+        setPhase({ kind: "mode-reveal", tick: 0, round, run, clockOffsetMs: clockOffsetFor(round) });
+      } catch (err: any) {
         if (abandoned) return;
-        setPhase({ kind: "error", message: err.message ?? "Failed to start run" });
-      });
+        setPhase({ kind: "error", message: err?.message ?? "Failed to start run" });
+      }
+    };
+    start();
     return () => { abandoned = true; };
   }, [runGen]);
 
-  // 2. mode-reveal tick — counts down to 0, then drops us into in-match.
+  // 2. mode-reveal tick — count down to play_at_ms using the server
+  // clock anchor. Once we cross it, drop into in-match. Re-rendering
+  // every 100ms is cheap; only the `tick` counter changes.
   useEffect(() => {
     if (phase.kind !== "mode-reveal") return;
-    if (phase.countdownMs <= 0) {
-      setPhase({ kind: "in-match", round: phase.round, run: phase.run, clipPlayedMs: 0 });
+    const remaining = phase.round.play_at_ms - serverNow(phase.clockOffsetMs);
+    if (remaining <= 0) {
+      setPhase({ kind: "in-match", tick: 0, round: phase.round, run: phase.run, clockOffsetMs: phase.clockOffsetMs, audioStarted: false });
       return;
     }
     const t = setTimeout(() => {
-      setPhase((p) => p.kind === "mode-reveal" ? { ...p, countdownMs: Math.max(0, p.countdownMs - 100) } : p);
-    }, 100);
+      setPhase((p) => p.kind === "mode-reveal" ? { ...p, tick: p.tick + 1 } : p);
+    }, Math.min(100, remaining));
     return () => clearTimeout(t);
   }, [phase]);
 
-  // 3. in-match: start the clip and tick the timer. Server tells us
-  // the duration; we render the waveform progress from a local
-  // wall-clock counter so seeking the audio mid-round doesn't desync.
-  const inMatchStart = useRef<number>(0);
+  // 3. in-match: start the clip and tick the timer off the server
+  // clock. The "remaining" countdown is derived from expires_at_ms,
+  // not a local stopwatch — so reloading the page keeps the same
+  // deadline. Audio start is one-shot (audioStarted flag); audio
+  // continues to play once started, the visible bar is what the
+  // server clock drives.
   useEffect(() => {
     if (phase.kind !== "in-match") return;
-    inMatchStart.current = Date.now();
-    if (audioRef.current) {
-      try {
-        audioRef.current.src = phase.round.clip_url;
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => {});
-      } catch { /* autoplay block — UI is still usable */ }
+    if (!phase.audioStarted) {
+      if (audioRef.current) {
+        try {
+          audioRef.current.src = phase.round.clip_url;
+          // Skip into the clip by however much time has already
+          // elapsed since play_at_ms (covers reload mid-clip).
+          const elapsed = Math.max(0, serverNow(phase.clockOffsetMs) - phase.round.play_at_ms);
+          audioRef.current.currentTime = elapsed / 1000;
+          audioRef.current.play().catch(() => {});
+        } catch { /* autoplay block — UI is still usable */ }
+      }
+      setPhase((p) => p.kind === "in-match" ? { ...p, audioStarted: true } : p);
+      return;
     }
-    const id = setInterval(() => {
-      setPhase((p) => {
-        if (p.kind !== "in-match") return p;
-        const played = Date.now() - inMatchStart.current;
-        if (played >= p.round.clip_duration_ms) {
-          // 20s elapsed without an answer → server-side timeout (we
-          // POST null and let the backend mark it wrong + decrement
-          // lives, single source of truth).
-          submitTimeout(p);
-          return p;
-        }
-        return { ...p, clipPlayedMs: played };
-      });
-    }, 100);
-    return () => clearInterval(id);
+    const remaining = phase.round.expires_at_ms - serverNow(phase.clockOffsetMs);
+    if (remaining <= 0) {
+      // Deadline passed without an answer → server-side timeout (POST
+      // null, backend marks wrong + decrements lives, single source
+      // of truth).
+      submitTimeout(phase);
+      return;
+    }
+    const id = setTimeout(() => {
+      setPhase((p) => p.kind === "in-match" ? { ...p, tick: p.tick + 1 } : p);
+    }, Math.min(100, remaining));
+    return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.kind, phase.kind === "in-match" ? phase.round.round_id : null]);
+  }, [phase]);
 
   // 4. reveal → auto-advance after REVEAL_HOLD_MS. If the result was
   // run-over the server has already attached a summary; we land on the
@@ -134,12 +208,22 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
   }, [phase]);
 
   const advanceFromReveal = (rev: Phase & { kind: "reveal" }) => {
+    // library_cleared takes precedence over a regular run-end: both
+    // carry a summary, but the cleared screen is the celebratory
+    // variant. Without this branch the player would see the normal
+    // "all lives spent" screen after answering every opening, which
+    // is wrong (their run ended because they won, not died).
+    if (rev.result.library_cleared && rev.result.run_summary) {
+      setPhase({ kind: "library-cleared", run: rev.result.run, summary: rev.result.run_summary });
+      return;
+    }
     if (rev.result.run_summary) {
       setPhase({ kind: "ended", run: rev.result.run, summary: rev.result.run_summary });
       return;
     }
     if (rev.result.next_round) {
-      setPhase({ kind: "mode-reveal", countdownMs: MODE_REVEAL_MS, round: rev.result.next_round, run: rev.result.run });
+      const next = rev.result.next_round;
+      setPhase({ kind: "mode-reveal", tick: 0, round: next, run: rev.result.run, clockOffsetMs: clockOffsetFor(next) });
     }
   };
 
@@ -164,7 +248,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
       const response = await playClient.submitAnswer(p.run.id, {
         round_token: p.round.round_token,
         anime_id: animeId,
-        client_response_ms: Date.now() - inMatchStart.current,
+        client_response_ms: Math.max(0, serverNow(p.clockOffsetMs) - p.round.play_at_ms),
       });
       // `animeId === null` only happens via the clip-timer's `submitTimeout`
       // path — the user never had a chance to guess. Tracking it client-side
@@ -202,7 +286,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
         {phase.kind === "mode-reveal" && (
           <ModeRevealScreen
             mode={phase.round.mode}
-            countdownMs={phase.countdownMs}
+            countdownMs={Math.max(0, phase.round.play_at_ms - serverNow(phase.clockOffsetMs))}
             run={phase.run}
             round={phase.round}
           />
@@ -211,7 +295,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
           <InMatchScreen
             round={phase.round}
             run={phase.run}
-            playedMs={phase.clipPlayedMs}
+            playedMs={Math.max(0, serverNow(phase.clockOffsetMs) - phase.round.play_at_ms)}
             onSubmit={(animeId) => submitAnswer(phase, animeId)}
           />
         )}
@@ -223,6 +307,13 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
             run={phase.run}
             summary={phase.summary}
             user={user}
+            onRestart={() => setRunGen((g) => g + 1)}
+          />
+        )}
+        {phase.kind === "library-cleared" && (
+          <LibraryClearedScreen
+            run={phase.run}
+            summary={phase.summary}
             onRestart={() => setRunGen((g) => g + 1)}
           />
         )}
@@ -285,7 +376,7 @@ function Hud({ run, mode, label }: { run: SoloRun; mode?: string; label?: string
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
         <div style={{ fontFamily: SOLO.mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: SOLO.fg3 }}>
-          Round {String(run.score + (run.lives_regen ?? 0) + (3 - run.lives) + 1).padStart(2, "0")}
+          Round {String(run.score + (3 - run.lives) + 1).padStart(2, "0")}
         </div>
         {mode && (
           <div style={{ fontFamily: SOLO.mono, fontSize: 12, color: SOLO.accent, letterSpacing: "0.2em", fontWeight: 600 }}>
@@ -520,7 +611,7 @@ function RevealScreen({ result, run, timedOut }: { result: SoloAnswerResponse; r
           the top — previously `top: 60` left a purple strip up top. */}
       <div style={{ position: "fixed", inset: 0, background: correct ? `${SOLO.ok}26` : `${SOLO.danger}26`, pointerEvents: "none", zIndex: 50 }} />
       <TimerBar pct={0.4} danger={!correct} />
-      <Hud run={run} label={correct && result.round_result.life_regen ? "streak +1 · ♥+1" : correct ? "streak +1" : "streak reset"} />
+      <Hud run={run} label={correct ? "streak +1" : "streak reset"} />
       <div className="reveal-page" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
         <div className="reveal-eyebrow" style={{ position: "absolute", top: 30, left: 40 }}>
           <Eyebrow color={correct ? SOLO.ok : SOLO.danger} dotColor={correct ? SOLO.ok : SOLO.danger}>
@@ -581,6 +672,99 @@ function StatCell({ value, label, color = SOLO.fg }: { value: string; label: str
     <div>
       <div style={{ fontFamily: SOLO.mono, fontWeight: 500, fontSize: 28, color, letterSpacing: "-0.03em", lineHeight: 1 }}>{value}</div>
       <div style={{ fontFamily: SOLO.mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: SOLO.fg3, marginTop: 6 }}>{label}</div>
+    </div>
+  );
+}
+
+// LibraryClearedScreen — the "you broke the wiki" celebration. Shown
+// when a run ends because the player answered every opening in the
+// catalog. Layout mirrors the design HTML at
+// `Endless Library Cleared.html`: error-log eyebrow on the left,
+// glitched headline, action buttons, and a completion panel on the
+// right with 100% coverage + run stats. Total openings comes from
+// the summary's by_mode hits+total sum so we don't need a separate
+// endpoint.
+function LibraryClearedScreen({ run, summary, onRestart }: { run: SoloRun; summary: SoloRunSummary; onRestart: () => void }) {
+  const totalAnswered = useMemo(() => {
+    return summary.by_mode.reduce((acc, m) => acc + m.total, 0);
+  }, [summary]);
+  const lengthStr = useMemo(() => {
+    const ended = run.ended_at ? new Date(run.ended_at).getTime() : Date.now();
+    const total = Math.max(0, Math.floor((ended - new Date(run.started_at).getTime()) / 1000));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }, [run]);
+
+  return (
+    <div style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "100%", fontFamily: SOLO.sans }}>
+      <div style={{
+        maxWidth: 1200, margin: "0 auto", padding: "56px 64px 48px",
+        display: "grid", gridTemplateColumns: "1.15fr 1fr", gap: 56, alignItems: "center",
+      }}>
+        <div>
+          <Eyebrow color={SOLO.danger} dotColor={SOLO.danger}>Endless · queue empty</Eyebrow>
+          <div style={{
+            margin: "18px 0 32px", fontFamily: SOLO.mono, fontSize: 12, lineHeight: 1.75,
+            color: SOLO.fg4, borderLeft: `2px solid ${SOLO.line2}`, paddingLeft: 14, maxWidth: 460,
+          }}>
+            <div><b style={{ color: SOLO.fg2, fontWeight: 500 }}>error:</b> queue.next() returned <span style={{ color: SOLO.danger }}>null</span></div>
+            <div><b style={{ color: SOLO.fg2, fontWeight: 500 }}>cause:</b> all <span style={{ color: SOLO.accent }}>{totalAnswered.toLocaleString()}</span> openings already served this run</div>
+            <div><b style={{ color: SOLO.fg2, fontWeight: 500 }}>status:</b> <span style={{ color: SOLO.ok }}>OK</span> · you win, technically</div>
+          </div>
+          <h1 style={{
+            fontFamily: "'Instrument Serif', 'Times New Roman', serif", fontWeight: 400, fontSize: 124, lineHeight: 0.95,
+            letterSpacing: "-0.04em", margin: 0, paddingBottom: 18, color: SOLO.fg,
+          }}>
+            You broke<br />the <em style={{ fontStyle: "italic", color: SOLO.accent }}>wiki.</em>
+          </h1>
+          <p style={{ margin: "0 0 32px", color: SOLO.fg2, fontSize: 15, maxWidth: 460, lineHeight: 1.6 }}>
+            We literally <b>ran out of openings</b> to throw at you. The library has been your library now — take a victory lap, or come back when we've added more.
+          </p>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button onClick={onRestart} style={{
+              background: SOLO.accent, color: SOLO.bg, border: "none", borderRadius: 8,
+              padding: "14px 22px", fontWeight: 600, fontSize: 14, cursor: "pointer",
+              display: "inline-flex", alignItems: "center", gap: 8, fontFamily: SOLO.sans,
+              boxShadow: `0 0 30px ${SOLO.accent}55`,
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              Start a new run
+            </button>
+            <Link href="/play/endless" style={{
+              background: "transparent", border: `1px solid ${SOLO.line2}`, color: SOLO.fg2,
+              borderRadius: 8, padding: "14px 22px", fontWeight: 500, fontSize: 14, textDecoration: "none",
+            }}>Back to home</Link>
+          </div>
+        </div>
+
+        <div style={{ background: SOLO.bg2, border: `1px solid ${SOLO.line}`, borderRadius: 12, padding: 28 }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "baseline",
+            fontFamily: SOLO.mono, fontSize: 12, color: SOLO.fg3, paddingBottom: 22,
+            borderBottom: `1px solid ${SOLO.line}`,
+          }}>
+            <span>Run · <b style={{ color: SOLO.fg, fontWeight: 500 }}>complete</b></span>
+            <span style={{ color: SOLO.fg4 }}>cleared</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 14, padding: "26px 0 20px" }}>
+            <div style={{ fontFamily: "'Instrument Serif', 'Times New Roman', serif", fontSize: 84, fontWeight: 400, color: SOLO.accent, lineHeight: 0.9, letterSpacing: "-0.04em" }}>
+              100<span style={{ fontSize: 48 }}>%</span>
+            </div>
+            <div style={{ fontFamily: SOLO.mono, fontSize: 12, color: SOLO.fg3, lineHeight: 1.5 }}>
+              <b style={{ color: SOLO.fg, fontWeight: 500 }}>{totalAnswered.toLocaleString()}</b> of <b style={{ color: SOLO.fg, fontWeight: 500 }}>{totalAnswered.toLocaleString()}</b><br />openings answered
+            </div>
+          </div>
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20,
+            paddingTop: 22, borderTop: `1px dashed ${SOLO.line}`,
+          }}>
+            <StatCell value={totalAnswered.toLocaleString()} label="answered" />
+            <StatCell value={`×${summary.longest_streak}`} label="best streak" color={SOLO.accent} />
+            <StatCell value={lengthStr} label="run · hh:mm" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
