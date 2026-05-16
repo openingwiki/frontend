@@ -32,13 +32,24 @@ async function fetchAnimeItems(q: string): Promise<AutocompleteItem[]> {
   if (!res.ok) return [];
   const payload = await res.json();
   const items = Array.isArray(payload.data) ? payload.data : [];
-  return items.map((a: any) => ({
-    id: a.id,
-    label: a.name,
-    coverUrl: a.cover_image_url ?? null,
-    iconShape: "square" as const,
-    sublabel: a.year ? `${a.year} · ${(a.format ?? "").toUpperCase().replace("_", " ")}` : undefined,
-  }));
+  return items.map((a: any) => {
+    // sublabel: English title (when present) followed by year / format.
+    // The English line lets a user confirm they picked the right anime
+    // even when they're searching in English while the row is keyed
+    // on romaji.
+    const tail = a.year ? `${a.year} · ${(a.format ?? "").toUpperCase().replace("_", " ")}` : "";
+    const english = (a.title_english ?? "").trim();
+    const sublabel = english
+      ? (tail ? `${english} · ${tail}` : english)
+      : (tail || undefined);
+    return {
+      id: a.id,
+      label: a.name,
+      coverUrl: a.cover_image_url ?? null,
+      iconShape: "square" as const,
+      sublabel,
+    };
+  });
 }
 
 async function fetchSingerItems(q: string): Promise<AutocompleteItem[]> {
@@ -63,12 +74,12 @@ function Sidebar({ tab }: { tab: Tab }) {
   const tips: Record<Tab, React.ReactNode[]> = {
     opening: [
       <><strong>Official upload preferred</strong> — Crunchyroll, the studio, or the artist&apos;s channel.</>,
-      <>Title in romaji or English — no season abbreviations (OP1, OP2 etc.).</>,
+      <>Title is the song name only (romaji or English) — the OP/ED number goes in the separate sequence-number field.</>,
       <>If the anime or singer isn&apos;t in the database yet, submit it first from the other tabs.</>,
     ],
     anime: [
       <>Use the <strong>AniList link</strong> as the reference — it&apos;s the easiest for mods to verify.</>,
-      <>Romaji title is the canonical key — spell it consistently with AniList.</>,
+      <>Romaji title is required — it&apos;s the canonical key, spell it consistently with AniList.</>,
       <>Sequels and side stories should be separate entries if they have their own OPs.</>,
     ],
     singer: [
@@ -130,11 +141,26 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
   const [kind, setKind] = useState<TrackKind>("opening");
   const [title, setTitle] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
+  // sequenceNumber is the OP/ED number. Required when kind is
+  // "opening" or "ending" (CHECK constraint added in migration
+  // 000014 forbids NULLs for non-OST). Hidden when kind is "ost" —
+  // OSTs deliberately don't carry a sequence number. Kept as a
+  // string in the input state so the field can be cleared, parsed to
+  // a number on submit.
+  const [sequenceNumber, setSequenceNumber] = useState<string>("");
   const [selectedAnime, setSelectedAnime] = useState<AutocompleteItem | null>(null);
   const [selectedSinger, setSelectedSinger] = useState<AutocompleteItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Clear the sequence field when switching to OST so a leftover value
+  // doesn't get sent to the API (the backend rejects sequence_number
+  // on OST submissions).
+  const setKindClamped = (next: TrackKind) => {
+    setKind(next);
+    if (next === "ost") setSequenceNumber("");
+  };
 
   const fetchAnime = useCallback(fetchAnimeItems, []);
   const fetchSinger = useCallback(fetchSingerItems, []);
@@ -146,6 +172,19 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
     if (!youtubeUrl.trim()) errs.youtube_url = "YouTube URL is required";
     if (!selectedAnime) errs.anime_id = "Select an anime";
     if (!selectedSinger) errs.singer_id = "Select a singer";
+    // Sequence-number client-side guard. The backend re-validates the
+    // same rule, so this is just for snappier feedback — server-side
+    // errors still flow through `setFieldErrors(err.fields)` below.
+    let parsedSeq: number | null = null;
+    if (kind !== "ost") {
+      const trimmed = sequenceNumber.trim();
+      const n = parseInt(trimmed, 10);
+      if (!trimmed || Number.isNaN(n) || n < 1) {
+        errs.sequence_number = "Sequence number is required (e.g. 1 for OP1)";
+      } else {
+        parsedSeq = n;
+      }
+    }
     if (Object.keys(errs).length > 0) { setFieldErrors(errs); return; }
 
     setSubmitting(true);
@@ -159,6 +198,9 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
         title: title.trim(),
         youtube_url: youtubeUrl.trim(),
         kind,
+        // null for OST — the backend rejects a non-null sequence
+        // number when kind is ost, by design.
+        sequence_number: parsedSeq,
         anime_id: selectedAnime!.id,
         singer_id: selectedSinger!.id,
       }),
@@ -203,7 +245,7 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
                 key={opt.value}
                 type="button"
                 className={`sub-type-pick ${opt.cls}${kind === opt.value ? " on" : ""}`}
-                onClick={() => setKind(opt.value)}
+                onClick={() => setKindClamped(opt.value)}
               >
                 <div className="tp-row">
                   <span className="tp-tag">{opt.tag}</span>
@@ -225,6 +267,24 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
             <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Song name (romaji or english) — e.g. Mukanjyo" />
             {fieldErrors.title && <span className="ferr">{fieldErrors.title}</span>}
           </div>
+          {kind !== "ost" && (
+            <div className="sub-row">
+              <label>
+                Sequence number <span className="req">*</span>
+                <span className="sub-hint"> ({kind === "ending" ? "ED1, ED2…" : "OP1, OP2…"})</span>
+              </label>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                value={sequenceNumber}
+                onChange={(e) => setSequenceNumber(e.target.value)}
+                placeholder="1"
+              />
+              {fieldErrors.sequence_number && <span className="ferr">{fieldErrors.sequence_number}</span>}
+            </div>
+          )}
 
           <div className="sub-section"><span className="sub-step">03</span> Anime &amp; singer</div>
           <div className="sub-grid-2">
@@ -311,6 +371,7 @@ function AnimePane() {
   };
 
   const [f, setF] = useState({
+    title_romaji: "",
     title_english: "",
     year: "", format: "tv" as AnimeFormat,
     reference_url: "",
@@ -357,7 +418,8 @@ function AnimePane() {
     setImportQuery("");
     setImportResults([]);
     setF({
-      title_english: item.title_english || item.title_romaji,
+      title_romaji: item.title_romaji,
+      title_english: item.title_english,
       year: item.year ? String(item.year) : "",
       format: item.format,
       reference_url: item.reference_url,
@@ -397,6 +459,7 @@ function AnimePane() {
     e.preventDefault();
     const errs: Record<string, string> = {};
     if (!coverKey) errs.cover_image_key = "Cover image is required";
+    if (!f.title_romaji.trim()) errs.title_romaji = "Romaji title is required";
     if (!f.title_english.trim()) errs.title_english = "English title is required";
     if (!f.year.trim()) errs.year = "Year is required";
     if (!f.reference_url.trim()) errs.reference_url = "Reference link is required";
@@ -428,7 +491,7 @@ function AnimePane() {
         <div className="sub-form-body" style={{ textAlign: "center", padding: "48px 26px" }}>
           <p style={{ fontSize: 16, marginBottom: 20 }}>Anime submitted for review ✓</p>
           <p className="hint" style={{ marginBottom: 24 }}>Once a mod approves it, it will appear in the anime picker on the Opening tab.</p>
-          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ title_english: "", year: "", format: "tv", reference_url: "" }); setCoverKey(""); setCoverPreviewUrl(null); }}>
+          <button type="button" className="btn" onClick={() => { setSuccess(false); setF({ title_romaji: "", title_english: "", year: "", format: "tv", reference_url: "" }); setCoverKey(""); setCoverPreviewUrl(null); }}>
             Submit another
           </button>
         </div>
@@ -502,6 +565,12 @@ function AnimePane() {
           {fieldErrors.cover_image_key && <span className="ferr">{fieldErrors.cover_image_key}</span>}
 
           <div className="sub-section"><span className="sub-step">02</span> Title</div>
+          <div className="sub-row">
+            <label>Romaji title <span className="req">*</span></label>
+            <input type="text" value={f.title_romaji} onChange={set("title_romaji")} placeholder="Shingeki no Kyojin" />
+            <span className="hint">Canonical key — required. Picker matches both romaji and English.</span>
+            {fieldErrors.title_romaji && <span className="ferr">{fieldErrors.title_romaji}</span>}
+          </div>
           <div className="sub-row">
             <label>English title <span className="req">*</span></label>
             <input type="text" value={f.title_english} onChange={set("title_english")} placeholder="Attack on Titan" />

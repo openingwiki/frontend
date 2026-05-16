@@ -83,6 +83,7 @@ function buildOpening(i: number): Opening {
     title: TITLES[i],
     youtube_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     kind: "opening",
+    sequence_number: 1,
     anime: { id: `a_${i + 1}`, name: ANIME_NAMES[i] },
     singer: { id: `s_${i + 1}`, name: SINGER_NAMES[i] },
     status: "approved",
