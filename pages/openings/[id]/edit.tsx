@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { useState, useCallback, useRef, useEffect } from "react";
 import Layout from "@/components/Layout";
 import { getAnime, getOpening, getSinger } from "@/lib/api";
+import { formatSequenceLabel } from "@/lib/openings";
 import { loadSession } from "@/lib/session";
 import { pushToast } from "@/lib/toast";
 import { youtubeEmbedURL } from "@/lib/youtube";
@@ -182,17 +183,36 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
   const [title, setTitle] = useState(opening.title);
   const [youtubeUrl, setYoutubeUrl] = useState(opening.youtube_url);
   const [kind, setKind] = useState<TrackKind>(opening.kind);
+  // Edit-form state is a string so the input can be blank between
+  // edits without coercing 0 into the payload. Cleared automatically
+  // when the user flips to "ost" since OSTs may not carry a number.
+  const [sequenceNumber, setSequenceNumber] = useState<string>(
+    opening.sequence_number != null ? String(opening.sequence_number) : ""
+  );
   const [anime, setAnime] = useState<EntityItem>({ id: opening.anime.id, name: opening.anime.name, coverUrl: animeCoverUrl });
   const [singer, setSinger] = useState<EntityItem>({ id: opening.singer.id, name: opening.singer.name, coverUrl: singerCoverUrl });
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  // setKindClamped mirrors the submit form: clearing the sequence
+  // input on a switch-to-ost keeps the wire body invariant
+  // (sequence_number: null for ost) without forcing the user to
+  // delete the digits manually.
+  const setKindClamped = (next: TrackKind) => {
+    setKind(next);
+    if (next === "ost") setSequenceNumber("");
+  };
+
+  const parsedSeq = parseInt(sequenceNumber.trim(), 10);
+  const currentSeqStr = opening.sequence_number != null ? String(opening.sequence_number) : "";
   const isDirty =
     title !== opening.title ||
     youtubeUrl !== opening.youtube_url ||
     kind !== opening.kind ||
+    sequenceNumber !== currentSeqStr ||
     anime.id !== opening.anime.id ||
     singer.id !== opening.singer.id;
 
@@ -206,6 +226,20 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
 
   const save = async () => {
     if (saving) return;
+    // Client-side guard before the network round-trip; the backend
+    // re-validates the same rule and surfaces fields.sequence_number
+    // for slower feedback.
+    const localErrs: Record<string, string> = {};
+    let sequencePayload: number | null = null;
+    if (kind !== "ost") {
+      if (!sequenceNumber.trim() || Number.isNaN(parsedSeq) || parsedSeq < 1) {
+        localErrs.sequence_number = "Sequence number is required (e.g. 1 for OP1)";
+      } else {
+        sequencePayload = parsedSeq;
+      }
+    }
+    if (Object.keys(localErrs).length > 0) { setFieldErrors(localErrs); return; }
+    setFieldErrors({});
     setSaving(true);
     try {
       const res = await fetch("/api/admin/opening-update", {
@@ -216,13 +250,17 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
           title: title.trim(),
           youtube_url: youtubeUrl.trim(),
           kind,
+          // null for ost — the backend rejects non-null on OST, by
+          // design. The wire shape is the same as POST /openings.
+          sequence_number: sequencePayload,
           anime_id: anime.id,
           singer_id: singer.id,
         }),
       });
       if (!res.ok && res.status !== 204) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error ?? `Save failed (${res.status})`);
+        if (body?.error?.fields) setFieldErrors(body.error.fields);
+        throw new Error(body?.error?.message ?? body?.error ?? `Save failed (${res.status})`);
       }
       pushToast({ kind: "success", message: "Opening updated" });
       router.push(`/openings/${opening.id}`);
@@ -258,7 +296,12 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
     }
   };
 
-  const displayName = opening.title;
+  // "OP1 · Rocks" if the opening has a sequence number, just the
+  // title otherwise. Used for the page title, breadcrumb, heading,
+  // and delete-confirm copy so the moderator always sees the same
+  // canonical name.
+  const seqLabel = formatSequenceLabel(opening.kind, opening.sequence_number);
+  const displayName = seqLabel ? `${seqLabel} · ${opening.title}` : opening.title;
 
   return (
     <Layout
@@ -272,7 +315,7 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
         <div className="edit-crumb">
           <Link href="/">Home</Link>
           <span className="edit-crumb-sep">/</span>
-          <Link href={`/openings/${opening.id}`}>{opening.title}</Link>
+          <Link href={`/openings/${opening.id}`}>{displayName}</Link>
           <span className="edit-crumb-sep">/</span>
           <span className="edit-crumb-here">Edit</span>
         </div>
@@ -329,7 +372,19 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
                     <div className="edit-pi-row">
                       <div className="edit-pi-cell">
                         <span className="edit-pi-lbl">Title</span>
-                        <span className="edit-pi-val">{title || opening.title}</span>
+                        <span className="edit-pi-val">
+                          {/* Live "OP1 · Rocks" preview — falls back
+                              to bare title when kind=ost or the input
+                              is empty mid-edit. */}
+                          {(() => {
+                            const seqLive = kind === "ost"
+                              ? null
+                              : (Number.isNaN(parsedSeq) ? null : parsedSeq);
+                            const seqLabel = formatSequenceLabel(kind, seqLive);
+                            const titleText = title || opening.title;
+                            return seqLabel ? `${seqLabel} · ${titleText}` : titleText;
+                          })()}
+                        </span>
                       </div>
                       <div className="edit-pi-cell">
                         <span className="edit-pi-lbl">Type</span>
@@ -373,7 +428,7 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
                       key={opt.value}
                       type="button"
                       className={`edit-type-pick${kind === opt.value ? " on" : ""}`}
-                      onClick={() => setKind(opt.value)}
+                      onClick={() => setKindClamped(opt.value)}
                     >
                       <span className="edit-type-tag">{opt.tag}</span>
                       <span className="edit-type-nm">{opt.label}</span>
@@ -413,6 +468,28 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
                     onChange={(e) => setTitle(e.target.value)}
                   />
                 </div>
+                {kind !== "ost" && (
+                  <div className={`edit-row${sequenceNumber !== currentSeqStr ? " dirty" : ""}`}>
+                    <label className="edit-label">
+                      Sequence number <span className="edit-req">*</span>
+                      <span className="edit-hint" style={{ marginLeft: 8 }}>
+                        ({kind === "ending" ? "ED1, ED2…" : "OP1, OP2…"})
+                      </span>
+                      {sequenceNumber !== currentSeqStr && <span className="edit-changed">unsaved</span>}
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      inputMode="numeric"
+                      className="edit-input"
+                      value={sequenceNumber}
+                      onChange={(e) => setSequenceNumber(e.target.value)}
+                      placeholder="1"
+                    />
+                    {fieldErrors.sequence_number && <span className="edit-hint" style={{ color: "var(--danger)" }}>{fieldErrors.sequence_number}</span>}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -527,7 +604,7 @@ export default function OpeningEditPage({ user, modQueueCount, opening, embedUrl
           <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
             <h2 className="admin-modal-title">Delete this opening?</h2>
             <p className="admin-modal-body">
-              You&apos;re about to permanently remove <strong>{opening.title}</strong>.
+              You&apos;re about to permanently remove <strong>{displayName}</strong>.
               All ratings and comments tied to it will remain in the database, but the
               opening disappears from the catalogue and all groups.
             </p>

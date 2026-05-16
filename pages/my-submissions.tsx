@@ -194,8 +194,14 @@ function SubmissionRow({ item }: { item: MySubmissionItem }) {
 function renderTypeTag(item: MySubmissionItem) {
   if (item.type === "opening") {
     const k = (item.kind ?? "opening").toString();
-    const label = k === "opening" ? "OP" : k === "ending" ? "ED" : "OST";
     const klass = k === "opening" ? "op" : k === "ending" ? "ed" : "ost";
+    // OP/ED tags include the sequence number when present (OP1, ED2);
+    // OST stays bare. Mirrors the rest of the site's badge format
+    // for inter-page consistency.
+    let label: string;
+    if (k === "opening") label = item.sequence_number != null ? `OP${item.sequence_number}` : "OP";
+    else if (k === "ending") label = item.sequence_number != null ? `ED${item.sequence_number}` : "ED";
+    else label = "OST";
     return <span className={`ms-tag ${klass}`}>{label}</span>;
   }
   if (item.type === "anime") return <span className="ms-tag anime">Anime</span>;
