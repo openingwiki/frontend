@@ -45,6 +45,10 @@ export interface AnimeAutocompleteItem {
   id: string;
   name: string;
   title_romaji: string;
+  // Empty string when the row has no English title. The picker UI
+  // renders this as the dropdown sublabel so a user typing in English
+  // can confirm they picked the right anime.
+  title_english: string;
   format: AnimeFormat;
   year: number;
 }
@@ -60,6 +64,10 @@ export interface Opening {
   title: string;
   youtube_url: string;
   kind: TrackKind;
+  // OP/ED number (1, 2, …). Always non-null for kind "opening" /
+  // "ending" (enforced by openings_sequence_required_for_op_ed in
+  // migration 000014); always null for kind "ost".
+  sequence_number: number | null;
   anime: Pick<Anime, "id" | "name">;
   singer: Pick<Singer, "id" | "name">;
   legacy_anime_name?: string | null;
@@ -240,6 +248,8 @@ export interface GroupOpening {
   id: string;
   title: string;
   youtube_url: string;
+  kind: TrackKind;
+  sequence_number: number | null;
   avg_rating: number;
   rating_count: number;
   anime: { id: string; name: string; cover_image_url: string | null };

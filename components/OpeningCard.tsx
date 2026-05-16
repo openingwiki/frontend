@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Opening } from "@/lib/types";
+import { formatSequenceLabel } from "@/lib/openings";
 import { youtubeThumbnail } from "@/lib/youtube";
 
 interface Props {
@@ -51,6 +52,12 @@ export default function OpeningCard({ op, newLabel }: Props) {
           </h3>
           <div className="op-meta">
             <span>{op.anime.name}</span>
+            {formatSequenceLabel(op.kind, op.sequence_number) && (
+              <>
+                <span className="sep"> · </span>
+                <span className="op-seq">{formatSequenceLabel(op.kind, op.sequence_number)}</span>
+              </>
+            )}
             <span className="sep"> · </span>
             <span>{op.singer.name}</span>
           </div>

@@ -52,11 +52,10 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 
 // OpeningCard expects the full Opening shape. Group payloads only carry the
 // card-level fields, so fill the rest with neutral defaults — the card never
-// reads them.
+// reads them. (kind + sequence_number now come from the API.)
 function asOpening(item: GroupOpening): Opening {
   return {
     ...item,
-    kind: "opening",
     status: "approved",
     submitted_by_user_id: "",
     submitted_at: "",

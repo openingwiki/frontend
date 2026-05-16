@@ -4,6 +4,7 @@ import { useState } from "react";
 import Layout from "@/components/Layout";
 import LocalSortDropdown from "@/components/LocalSortDropdown";
 import { getSinger } from "@/lib/api";
+import { formatSequenceLabel } from "@/lib/openings";
 import { loadSession } from "@/lib/session";
 import { youtubeThumbnail } from "@/lib/youtube";
 import type { SingerDetail, SingerOpening, TrackKind, User } from "@/lib/types";
@@ -36,8 +37,11 @@ function kindTag(kind: TrackKind): "OP" | "ED" | "OST" {
 }
 
 function kindLabel(op: SingerOpening): string {
-  const tag = kindTag(op.kind);
-  return op.sequence_number != null ? `${tag} ${op.sequence_number}` : tag;
+  // Use the shared formatter so the "OP1" / "ED2" format matches what
+  // OpeningCard and the opening detail page render. OST rows have no
+  // sequence number → return just the kind tag.
+  const seq = formatSequenceLabel(op.kind, op.sequence_number);
+  return seq || kindTag(op.kind);
 }
 
 function kindClass(kind: TrackKind): "op" | "ed" | "ost" {

@@ -1,6 +1,7 @@
 import type { GetServerSideProps } from "next";
 import Link from "next/link";
 import Layout from "@/components/Layout";
+import { formatSequenceLabel } from "@/lib/openings";
 import { youtubeEmbedURL, youtubeThumbnail } from "@/lib/youtube";
 import RatingPopup from "@/components/RatingPopup";
 import CommentsSection from "@/components/CommentsSection";
@@ -413,6 +414,15 @@ export default function OpeningDetail({
                 <h1 className="detail-title">{op.title}</h1>
                 <div className="detail-sub">
                   <Link href={`/anime/${op.anime.id}`} className="detail-link">{op.anime.name}</Link>
+                  {/* "Naruto · OP1 · Asian Kung-Fu Generation" — OST rows
+                      have no sequence_number, so the prefix is skipped
+                      and the row collapses to "Naruto · Yasha". */}
+                  {formatSequenceLabel(op.kind, op.sequence_number) && (
+                    <>
+                      <span className="detail-sep"> · </span>
+                      <span className="detail-seq">{formatSequenceLabel(op.kind, op.sequence_number)}</span>
+                    </>
+                  )}
                   <span className="detail-sep"> · </span>
                   <Link href={`/singers/${op.singer.id}`} className="detail-link">{op.singer.name}</Link>
                 </div>

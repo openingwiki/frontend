@@ -83,9 +83,15 @@ export default function AnimePage({ user, modQueueCount, anime }: Props) {
     return (a.sequence_number ?? 99) - (b.sequence_number ?? 99);
   });
 
-  const displayName = anime.title_english ?? anime.title_romaji ?? anime.name;
+  // Romaji is the canonical title (always present, NOT NULL since
+  // 000009). English is the secondary line beneath it; if there's no
+  // English title, fall back to the catalog `name` so the heading
+  // doesn't lose its English-readable form entirely.
+  const displayName = anime.title_romaji || anime.name;
+  const englishTitle = anime.title_english && anime.title_english !== displayName
+    ? anime.title_english
+    : (anime.name && anime.name !== displayName ? anime.name : null);
   const nativeTitle = anime.title_native;
-  const romajiTitle = anime.title_romaji !== displayName ? anime.title_romaji : null;
 
   const leadParts: string[] = [];
   if (anime.year) leadParts.push(String(anime.year));
@@ -144,8 +150,13 @@ export default function AnimePage({ user, modQueueCount, anime }: Props) {
           <div className="anime-hero-meta">
             <div className="anime-eyebrow">Anime</div>
             <h1 className="anime-title">{displayName}</h1>
+            {/* Reuse the existing .anime-romaji class for the
+                secondary line — the visual treatment ("mono, dim,
+                margin-bottom 18px") is the same whether we're
+                showing romaji-beneath-english or, now,
+                english-beneath-romaji. */}
+            {englishTitle && <div className="anime-romaji">{englishTitle}</div>}
             {nativeTitle && <div className="anime-native">{nativeTitle}</div>}
-            {romajiTitle && <div className="anime-romaji">{romajiTitle}</div>}
             {leadParts.length > 0 && (
               <div className="anime-lead">
                 {leadParts.map((p, i) => (
