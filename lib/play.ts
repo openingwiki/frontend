@@ -15,7 +15,6 @@ export interface SoloRun {
   lives: number;
   streak: number;
   longest_streak: number;
-  lives_regen: number;
   started_at: string;
   ended_at: string | null;
 }
@@ -27,7 +26,14 @@ export interface SoloRound {
   mode: "audio" | "visual" | "lyrics";
   clip_url: string;
   clip_duration_ms: number;
+  // server_now_ms is the server's UTC ms at the moment this round payload
+  // was rendered. play_at_ms is when the audio is supposed to start;
+  // expires_at_ms is the deadline. The client derives both countdowns by
+  // subtracting (server_now_ms - performance.now()) from the server
+  // anchors — never from a local "I just got this" timestamp — so a
+  // page reload picks up exactly where we are in the round.
   server_now_ms: number;
+  play_at_ms: number;
   expires_at_ms: number;
 }
 
@@ -49,7 +55,6 @@ export interface SoloRoundResult {
   score: number;
   streak: number;
   lives: number;
-  life_regen: boolean;
 }
 
 export interface SoloModeSummary {
@@ -71,7 +76,6 @@ export interface SoloRunSummary {
   run_id: string;
   score: number;
   longest_streak: number;
-  lives_regen: number;
   started_at: string;
   ended_at: string;
   by_mode: SoloModeSummary[];
@@ -83,6 +87,10 @@ export interface SoloAnswerResponse {
   round_result: SoloRoundResult;
   next_round?: SoloRound;
   run_summary?: SoloRunSummary;
+  // True when the run ended because every opening in the catalog has
+  // now been answered. Triggers the "library cleared" celebration
+  // screen instead of the regular run-end summary.
+  library_cleared?: boolean;
 }
 
 export interface SoloStartResponse {
@@ -136,6 +144,10 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 export const playClient = {
   startRun: () => call<SoloStartResponse>("/solo/runs", { method: "POST" }),
   getRun: (id: string) => call<{ run: SoloRun; current_round?: SoloRound }>(`/solo/runs/${encodeURIComponent(id)}`),
+  // Returns null when the caller has no active run (server replies 204
+  // No Content). Otherwise resolves to the active run + its current
+  // pending round, ready to drop into the mode-reveal / in-match phase.
+  currentRun: () => callOptional<{ run: SoloRun; current_round?: SoloRound }>("/solo/me/current"),
   submitAnswer: (id: string, body: { round_token: string; anime_id: string | null; client_response_ms: number }) =>
     call<SoloAnswerResponse>(`/solo/runs/${encodeURIComponent(id)}/answer`, {
       method: "POST",
@@ -145,6 +157,22 @@ export const playClient = {
     call<SoloLeaderboard>(`/solo/leaderboard${date ? `?date=${encodeURIComponent(date)}` : ""}`),
   myStats: () => call<SoloMyStats>("/solo/me/stats"),
 };
+
+async function callOptional<T>(path: string): Promise<T | null> {
+  const res = await fetch(`/api/play${path}`, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (res.status === 204) return null;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const code = body?.error?.code ?? "request_failed";
+    const msg = body?.error?.message ?? `HTTP ${res.status}`;
+    throw Object.assign(new Error(msg), { code, status: res.status });
+  }
+  const body = await res.json();
+  return body.data as T;
+}
 
 // Formatting helpers shared between hub and run-end pages.
 export function formatResetCountdown(seconds: number): string {
