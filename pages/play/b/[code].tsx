@@ -20,6 +20,13 @@ import {
 } from "@/lib/pvp";
 import type { User } from "@/lib/types";
 import { useKeyboardInset } from "@/lib/useKeyboardInset";
+import { pushToast } from "@/lib/toast";
+
+// Mirrors the constant in /play/run.tsx. Tab-hidden for this long → we
+// POST leave() and surface the "session ended" modal so the player
+// can't come back two hours later and be dropped back into a stale
+// match against an opponent who's long gone.
+const IDLE_ABANDON_MS = 15_000;
 
 interface Props {
   user: User;
@@ -396,6 +403,46 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
     [view, user.id],
   );
 
+  // Stale-return modal state — paints when the tab was hidden longer
+  // than IDLE_ABANDON_MS and we already POSTed leave() on return. The
+  // active phase keeps rendering behind it (greyed out) so the player
+  // sees the match they bailed out of for context.
+  const [staleAbandoned, setStaleAbandoned] = useState(false);
+  // True while the match is still in a state where idle-abandon makes
+  // sense (lobby/countdown/reveal/playing/round-end). Once the match
+  // is ended or errored, there's nothing for the auto-leave to do.
+  const inLiveMatch =
+    phase.kind === "lobby" ||
+    phase.kind === "rejoining" ||
+    phase.kind === "countdown" ||
+    phase.kind === "reveal" ||
+    phase.kind === "playing" ||
+    phase.kind === "round-end";
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!inLiveMatch || staleAbandoned) return;
+    let hiddenAt: number | null = null;
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (hiddenAt === null) return;
+      const idle = Date.now() - hiddenAt;
+      hiddenAt = null;
+      if (idle >= IDLE_ABANDON_MS) {
+        // Best-effort. We're already kicking the user out of the match
+        // UI-side; surfacing a toast on a backend hiccup would only
+        // confuse them.
+        pvpClient.leave(code).catch(() => {});
+        setStaleAbandoned(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [inLiveMatch, staleAbandoned, code]);
+
   const handleReady = async () => {
     try {
       const next = await pvpClient.ready(code, !meReady);
@@ -412,6 +459,13 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       setPhase({ kind: "error", message: err?.message ?? "Failed to leave" });
     }
   };
+  // Exit-match button rendered inside the in-match HUD. Same intent as
+  // the lobby's Leave action, but available mid-round so a player who
+  // wants out of a 1v1 doesn't have to wait for their lives to run out.
+  const handleExitMatch = useCallback(async () => {
+    try { await pvpClient.leave(code); } catch { /* */ }
+    router.push("/play");
+  }, [code, router]);
   const handleCancel = async () => {
     try {
       await pvpClient.cancel(code);
@@ -455,7 +509,7 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
           <CountdownView startsAtMs={phase.startsAtMs} />
         )}
         {phase.kind === "reveal" && (
-          <RevealView mode={phase.round.mode} countdownMs={phase.countdownMs} view={view} score={score} />
+          <RevealView mode={phase.round.mode} countdownMs={phase.countdownMs} view={view} score={score} onExit={handleExitMatch} />
         )}
         {phase.kind === "playing" && (
           <PlayingView
@@ -470,10 +524,11 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
               sockRef.current?.submitAnswer(phase.round.round_id, anime_id, Date.now());
             }}
             onTyping={() => sockRef.current?.sendTyping()}
+            onExit={handleExitMatch}
           />
         )}
         {phase.kind === "round-end" && (
-          <RoundEndView result={phase.result} view={view} meID={user.id} />
+          <RoundEndView result={phase.result} view={view} meID={user.id} signedIn={!!user} onExit={handleExitMatch} />
         )}
         {phase.kind === "ended" && (
           <MatchEndView
@@ -496,8 +551,46 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
             view={view}
           />
         )}
+        {staleAbandoned && (
+          <IdleMatchModal onAck={() => { setStaleAbandoned(false); router.push("/play"); }} />
+        )}
       </div>
     </Layout>
+  );
+}
+
+// Match analogue of run.tsx's IdleSessionModal. Surfaces when the
+// tab-visibility listener concluded the player was away for >15s and
+// already POSTed leave() — at this point the server has them out of
+// the match, so the modal just explains and offers a way back to /play.
+function IdleMatchModal({ onAck }: { onAck: () => void }) {
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="pvp-idle-title" style={{
+      position: "fixed", inset: 0, background: "rgba(6,4,12,0.86)",
+      backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 28, zIndex: 80,
+    }}>
+      <div style={{
+        background: SOLO.bg2, border: `1px solid ${SOLO.warn}`, borderRadius: 14,
+        padding: "28px 30px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+        textAlign: "center", maxWidth: 420, boxShadow: `0 0 50px ${SOLO.warn}33`,
+      }}>
+        <Eyebrow color={SOLO.warn} dotColor={SOLO.warn}>Session ended</Eyebrow>
+        <h3 id="pvp-idle-title" style={{ margin: 0, fontFamily: SOLO.sans, fontWeight: 700, fontSize: 22, letterSpacing: "-0.02em" }}>
+          You were idle too long.
+        </h3>
+        <p style={{ margin: 0, color: SOLO.fg2, fontSize: 14, lineHeight: 1.55 }}>
+          We dropped you out of the match after 15 seconds of being away so your opponent isn't kept waiting.
+        </p>
+        <button type="button" onClick={onAck} style={{
+          background: SOLO.accent, color: SOLO.bg, border: "none", borderRadius: 8,
+          padding: "10px 18px", fontFamily: SOLO.sans, fontWeight: 600, fontSize: 13, cursor: "pointer",
+          boxShadow: `0 0 18px ${SOLO.accent}44`, marginTop: 4,
+        }}>
+          Back to Play
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -758,10 +851,10 @@ function CountdownView({ startsAtMs }: { startsAtMs: number }) {
   );
 }
 
-function RevealView({ mode, countdownMs, view, score }: { mode: string; countdownMs: number; view: PvPMatchView; score: Record<string, number> }) {
+function RevealView({ mode, countdownMs, view, score, onExit }: { mode: string; countdownMs: number; view: PvPMatchView; score: Record<string, number>; onExit?: () => void }) {
   return (
     <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
-      <MatchHud view={view} scoreOverride={score} />
+      <MatchHud view={view} scoreOverride={score} onExit={onExit} />
       <div className="pvp-reveal-stage" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "80px 40px" }}>
         <Eyebrow>Next round · listen carefully</Eyebrow>
         <h1 className="game-mode-big" style={{ margin: "20px 0 0", fontWeight: 900, fontSize: 160, letterSpacing: "-0.06em", lineHeight: 0.9, color: SOLO.accent, textShadow: `0 0 60px ${SOLO.accent}55` }}>
@@ -781,14 +874,36 @@ function RevealView({ mode, countdownMs, view, score }: { mode: string; countdow
   );
 }
 
-function MatchHud({ view, scoreOverride }: { view: PvPMatchView; scoreOverride?: Record<string, number> }) {
+function MatchHud({ view, scoreOverride, onExit }: { view: PvPMatchView; scoreOverride?: Record<string, number>; onExit?: () => void }) {
   const players = view.players;
   const host = players.find((p) => p.seat === 1);
   const opp = players.find((p) => p.seat === 2);
   const hostScore = scoreOverride?.[host?.user_id ?? ""] ?? 0;
   const oppScore = scoreOverride?.[opp?.user_id ?? ""] ?? 0;
   return (
-    <div className="pvp-hud" style={{ display: "flex", alignItems: "center", gap: 24, padding: "16px 28px", background: "rgba(12,10,20,.92)", borderBottom: `1px solid ${SOLO.line}` }}>
+    <div className="pvp-hud" style={{ display: "flex", alignItems: "center", gap: 24, padding: "14px 28px", background: "rgba(12,10,20,.92)", borderBottom: `1px solid ${SOLO.line}` }}>
+      {onExit && (
+        <button
+          type="button"
+          onClick={onExit}
+          className="game-exit-btn"
+          aria-label="Exit match"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            fontFamily: SOLO.mono, fontSize: 10, letterSpacing: "0.14em",
+            textTransform: "uppercase", color: SOLO.fg3,
+            padding: "7px 10px 7px 9px",
+            border: `1px solid ${SOLO.line2}`, borderRadius: 7,
+            background: "rgba(255,255,255,0.02)", lineHeight: 1, whiteSpace: "nowrap",
+            cursor: "pointer", flexShrink: 0,
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          Exit
+        </button>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1 }}>
         <div style={{ width: 42, height: 42, borderRadius: "50%", background: SOLO.bg3, border: `2px solid ${SOLO.accent}`, color: SOLO.accent, display: "grid", placeItems: "center", fontWeight: 700, fontSize: 16 }}>
           {(host?.display_name?.[0] ?? "?").toUpperCase()}
@@ -813,12 +928,13 @@ function MatchHud({ view, scoreOverride }: { view: PvPMatchView; scoreOverride?:
   );
 }
 
-function PlayingView({ view, round, playedMs, meID, score, audioBlocked, onResumeAudio, onSubmit, onTyping }: {
+function PlayingView({ view, round, playedMs, meID, score, audioBlocked, onResumeAudio, onSubmit, onTyping, onExit }: {
   view: PvPMatchView; round: RoundStartData; playedMs: number; meID: string;
   score: Record<string, number>;
   audioBlocked: boolean;
   onResumeAudio: () => void;
   onSubmit: (anime_id: string) => void; onTyping: () => void;
+  onExit?: () => void;
 }) {
   // See run.tsx — keeps the fixed-bottom search bar above the on-screen
   // keyboard on mobile.
@@ -868,26 +984,30 @@ function PlayingView({ view, round, playedMs, meID, score, audioBlocked, onResum
   // with the giant timer top-right, edge-to-edge accent input at the
   // bottom, suggestions float above it.
   return (
-    <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
-      <MatchHud view={view} scoreOverride={score} />
+    <div style={{ minHeight: "calc(100vh - 60px)", maxHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <MatchHud view={view} scoreOverride={score} onExit={onExit} />
       <TimerBar pct={pct} danger={secsLeft < 5} />
-      <div className="game-stage" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 0 30px", position: "relative" }}>
+      {/* Tightened from 40/30 to 20/16 and waveform sized down so the
+          search input stays above the fold on a typical laptop viewport
+          (≥720px). Previously the input slid below the visible area and
+          users had to scroll to find it — the desktop-1v1 complaint. */}
+      <div className="game-stage" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "20px 0 16px", position: "relative", minHeight: 0 }}>
         <div className="game-clip-time" style={{
-          position: "absolute", top: 20, right: 40,
-          fontFamily: SOLO.mono, fontSize: 56, fontWeight: 500,
+          position: "absolute", top: 14, right: 40,
+          fontFamily: SOLO.mono, fontSize: 42, fontWeight: 500,
           letterSpacing: "-0.04em", color: secsLeft < 5 ? SOLO.danger : SOLO.fg, lineHeight: 1,
         }}>
-          {secsLeft.toFixed(1)}<s style={{ color: SOLO.fg4, fontSize: 32 }}>s</s>
+          {secsLeft.toFixed(1)}<s style={{ color: SOLO.fg4, fontSize: 24 }}>s</s>
         </div>
         <div className="game-clip-label" style={{
-          position: "absolute", top: 28, left: 40,
+          position: "absolute", top: 20, left: 40,
           fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3,
           letterSpacing: "0.14em", textTransform: "uppercase",
         }}>
           clip · {(round.clip_duration_ms / 1000).toFixed(0)}s · audio
         </div>
         <Waveform played={pct} />
-        <div style={{ textAlign: "center", marginTop: 22, fontFamily: SOLO.sans, fontSize: 14, color: SOLO.fg3 }}>
+        <div style={{ textAlign: "center", marginTop: 12, fontFamily: SOLO.sans, fontSize: 13, color: SOLO.fg3 }}>
           Name the anime. ↵ to submit.
         </div>
         {audioBlocked && (
@@ -915,7 +1035,7 @@ function PlayingView({ view, round, playedMs, meID, score, audioBlocked, onResum
           </button>
         )}
       </div>
-      <div className="game-input" style={{ padding: "0 40px 32px", position: "relative" }}>
+      <div className="game-input" style={{ padding: "0 40px 22px", position: "relative" }}>
         {suggestions.length > 0 && (
           <div className="game-suggs" style={{
             position: "absolute", bottom: "100%", left: 40, right: 40,
@@ -926,41 +1046,54 @@ function PlayingView({ view, round, playedMs, meID, score, audioBlocked, onResum
             <div style={{ padding: "10px 16px", fontFamily: SOLO.mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: SOLO.fg3, borderBottom: `1px solid ${SOLO.line}` }}>
               Anime matches
             </div>
-            {suggestions.map((s, i) => (
-              <div
-                key={s.id}
-                onMouseEnter={() => setActiveIdx(i)}
-                // See run.tsx — pointerdown beats iOS Safari's click
-                // cancellation when the keyboard closes on tap.
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  onSubmit(s.id);
-                }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
-                  background: i === activeIdx ? SOLO.bg3 : "transparent",
-                  borderLeft: i === activeIdx ? `2px solid ${SOLO.accent}` : "2px solid transparent",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{
-                  width: 38, height: 52, borderRadius: 4,
-                  border: `1px solid ${SOLO.line}`, flexShrink: 0, overflow: "hidden",
-                  background: s.cover ? "transparent" : SOLO.bg2,
-                  backgroundImage: s.cover ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 6px, ${SOLO.bg2} 6px 7px)`,
-                }}>
-                  {s.cover && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={s.cover} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  )}
+            {suggestions.map((s, i) => {
+              const active = i === activeIdx;
+              return (
+                <div
+                  key={s.id}
+                  role="button"
+                  tabIndex={0}
+                  onMouseEnter={() => setActiveIdx(i)}
+                  // pointerdown beats iOS Safari's click cancellation when the
+                  // keyboard closes on tap. Applied to *every* suggestion so
+                  // tapping the second/third row registers — previously only
+                  // the active row showed a tap affordance.
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    onSubmit(s.id);
+                  }}
+                  className="game-sugg-row"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
+                    minHeight: 44,
+                    background: active ? SOLO.bg3 : "transparent",
+                    borderLeft: active ? `2px solid ${SOLO.accent}` : "2px solid transparent",
+                    cursor: "pointer",
+                    WebkitTapHighlightColor: "rgba(167,139,250,0.18)",
+                    touchAction: "manipulation",
+                  }}
+                >
+                  <div style={{
+                    width: 38, height: 52, borderRadius: 4,
+                    border: `1px solid ${SOLO.line}`, flexShrink: 0, overflow: "hidden",
+                    background: s.cover ? "transparent" : SOLO.bg2,
+                    backgroundImage: s.cover ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 6px, ${SOLO.bg2} 6px 7px)`,
+                  }}>
+                    {s.cover && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.cover} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
+                    <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>{s.year ?? "—"}</div>
+                  </div>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={active ? SOLO.accent : SOLO.fg4} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flexShrink: 0 }}>
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
-                  <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>{s.year ?? "—"}</div>
-                </div>
-                {i === activeIdx && <span style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "2px 6px", borderRadius: 3 }}>↵</span>}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         <div style={{
@@ -989,7 +1122,7 @@ function PlayingView({ view, round, playedMs, meID, score, audioBlocked, onResum
   );
 }
 
-function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPMatchView; meID: string }) {
+function RoundEndView({ result, view, meID, signedIn, onExit }: { result: RoundEndData; view: PvPMatchView; meID: string; signedIn: boolean; onExit?: () => void }) {
   const winner = result.winner_user_id;
   const youWon = winner === meID;
   const oppWon = !!winner && !youWon;
@@ -1049,7 +1182,7 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
 
   return (
     <div style={{ minHeight: "calc(100vh - 60px)", display: "flex", flexDirection: "column", position: "relative" }}>
-      <MatchHud view={view} scoreOverride={result.score} />
+      <MatchHud view={view} scoreOverride={result.score} onExit={onExit} />
       <div style={{ position: "fixed", inset: 0, background: noScore ? `${SOLO.warn}26` : youWon ? `${SOLO.ok}26` : `${SOLO.danger}26`, pointerEvents: "none", zIndex: 50 }} />
       <TimerBar pct={0.4} danger={oppWon} />
       <div className="reveal-page" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 40, position: "relative" }}>
@@ -1104,9 +1237,123 @@ function RoundEndView({ result, view, meID }: { result: RoundEndData; view: PvPM
                 </div>
               ) : null}
             </div>
+            {/* Inline rater — same shape as the Endless reveal card so
+                players can score the opening they just heard without
+                bouncing to the catalog page. */}
+            {op.id && (
+              <div className="reveal-actions" style={{ marginTop: 18 }}>
+                <PvpRateButton openingId={op.id} signedIn={signedIn} />
+              </div>
+            )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Twin of run.tsx's RateOpeningButton, inlined here so the PvP page
+// doesn't pull the run-flow file into its bundle. POSTs /api/rate and
+// pushes a toast on success/failure; no clear button (the reveal card
+// auto-advances).
+function PvpRateButton({ openingId, signedIn }: { openingId: string; signedIn: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [score, setScore] = useState<number | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const previewScore = hover ?? score ?? 0;
+
+  const commit = useCallback(async (n: number) => {
+    if (!signedIn || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ opening_id: openingId, score: n }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? `Rating failed (${res.status})`);
+      }
+      setScore(n);
+      pushToast({ kind: "success", message: `Rated ${n}/10` });
+    } catch (err) {
+      pushToast({ kind: "error", message: err instanceof Error ? err.message : "Could not save rating" });
+    } finally {
+      setSaving(false);
+    }
+  }, [openingId, signedIn, saving]);
+
+  if (!signedIn) {
+    return (
+      <Link href="/login" className="reveal-rate-btn" style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        background: "transparent", border: `1px solid ${SOLO.line2}`, color: SOLO.fg2,
+        padding: "8px 14px", borderRadius: 6, fontFamily: SOLO.sans, fontSize: 12,
+        textDecoration: "none",
+      }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 3l2.6 5.9 6.4.6-4.9 4.3 1.5 6.3L12 17l-5.6 3.1 1.5-6.3L3 9.5l6.4-.6L12 3z" /></svg>
+        Log in to rate
+      </Link>
+    );
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        className="reveal-rate-btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          background: score !== null ? "rgba(167,139,250,0.12)" : "transparent",
+          border: `1px solid ${score !== null ? SOLO.accent : SOLO.line2}`,
+          color: score !== null ? SOLO.accent : SOLO.fg2,
+          padding: "8px 14px", borderRadius: 6, fontFamily: SOLO.sans, fontSize: 12,
+          cursor: "pointer",
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 3l2.6 5.9 6.4.6-4.9 4.3 1.5 6.3L12 17l-5.6 3.1 1.5-6.3L3 9.5l6.4-.6L12 3z" /></svg>
+        {score !== null ? <>Rated <strong style={{ marginLeft: 2 }}>{score}</strong>/10</> : "Rate"}
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", left: 0, top: "calc(100% + 6px)",
+          background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 8,
+          padding: 8, display: "flex", flexDirection: "column", gap: 6,
+          boxShadow: "0 14px 40px rgba(0,0,0,0.4)", zIndex: 10, minWidth: 260,
+        }} onMouseLeave={() => setHover(null)}>
+          <div style={{ display: "flex", gap: 3 }}>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+              <button
+                key={n}
+                type="button"
+                disabled={saving}
+                onMouseEnter={() => setHover(n)}
+                onFocus={() => setHover(n)}
+                onClick={() => commit(n)}
+                aria-label={`Rate ${n} out of 10`}
+                style={{
+                  flex: 1, minWidth: 0, padding: "8px 0",
+                  background: n <= previewScore ? SOLO.accent : SOLO.bg3,
+                  color: n <= previewScore ? SOLO.bg : SOLO.fg3,
+                  border: 0, borderRadius: 4,
+                  fontFamily: SOLO.mono, fontWeight: 600, fontSize: 12,
+                  cursor: saving ? "wait" : "pointer",
+                }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            {previewScore > 0 ? `${previewScore} / 10` : "Pick a score"}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

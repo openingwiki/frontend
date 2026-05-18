@@ -153,6 +153,14 @@ export const playClient = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  // Manually end the run. The Exit-run button hits this so a subsequent
+  // /me/current doesn't keep dropping the player back into the same
+  // session two hours later. Best-effort: errors are swallowed because
+  // the UI is already navigating away on click.
+  abandonRun: (id: string) =>
+    call<{ abandoned: boolean }>(`/solo/runs/${encodeURIComponent(id)}/abandon`, {
+      method: "POST",
+    }),
   leaderboard: (date?: string) =>
     call<SoloLeaderboard>(`/solo/leaderboard${date ? `?date=${encodeURIComponent(date)}` : ""}`),
   myStats: () => call<SoloMyStats>("/solo/me/stats"),

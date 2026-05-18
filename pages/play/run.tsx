@@ -1,5 +1,6 @@
 import Head from "next/head";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import type { GetServerSideProps } from "next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -11,6 +12,13 @@ import type {
 } from "@/lib/play";
 import type { User } from "@/lib/types";
 import { useKeyboardInset } from "@/lib/useKeyboardInset";
+import { pushToast } from "@/lib/toast";
+
+// How long the player can have the run page backgrounded (tab hidden,
+// app switched away) before the run is auto-abandoned on return. Mirrors
+// the matching 15s spec for PvP and the "I came back two hours later
+// and was still in the same match" complaint that motivated this.
+const IDLE_ABANDON_MS = 15_000;
 
 interface Props {
   user: User | null;
@@ -65,6 +73,7 @@ function clockOffsetFor(round: SoloRound) {
 }
 
 export default function SoloRunPage({ user, modQueueCount }: Props) {
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>({ kind: "starting" });
   // Bumped when the user clicks "Run again" so the start-run effect
   // re-fires and a fresh run is requested. A plain `<Link href="/play/run">`
@@ -79,6 +88,33 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
   // reveal), but on mobile that one-frame flash reads as a page-shake.
   // The ref keeps the in-match UI on screen until the reveal arrives.
   const submittingRef = useRef(false);
+  // Surfaces a "session ended" modal when the user returns to a
+  // backgrounded tab more than IDLE_ABANDON_MS after they left it. The
+  // run itself is already abandoned on the server by that point; the
+  // modal just stops the page rendering whatever stale phase it
+  // happened to be in.
+  const [staleAbandoned, setStaleAbandoned] = useState(false);
+
+  // Best-effort manual abandon. Used by both the Exit-run button and the
+  // idle-return path. Errors are swallowed — the user is already
+  // navigating away and a failed POST shouldn't block that.
+  const abandonRun = useCallback(async (runID: string | null) => {
+    if (!runID) return;
+    try { await playClient.abandonRun(runID); } catch { /* */ }
+  }, []);
+
+  // Active run ID for the abandon hooks. `phase.kind` carries it
+  // during play; on reveal/ended phases there's no run to abandon
+  // (server has already wrapped it up), so we return null.
+  const activeRunID = useMemo<string | null>(() => {
+    switch (phase.kind) {
+      case "mode-reveal":
+      case "in-match":
+        return phase.run.id;
+      default:
+        return null;
+    }
+  }, [phase]);
 
   // 1. On mount, try to resume an in-flight run first; only start a
   // fresh one if there's no active run on the server. This is what
@@ -234,6 +270,33 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Tab/visibility tracking for the 15s idle auto-abandon. Player
+  // tabs away (visibilitychange) → we stamp the timestamp; player
+  // comes back → if the gap exceeded IDLE_ABANDON_MS we POST abandon
+  // and surface the "session ended" modal. Mid-round backgrounding
+  // inside the threshold is allowed — the regular timer still
+  // governs round outcome.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!activeRunID || staleAbandoned) return;
+    let hiddenAt: number | null = null;
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (hiddenAt === null) return;
+      const idle = Date.now() - hiddenAt;
+      hiddenAt = null;
+      if (idle >= IDLE_ABANDON_MS) {
+        void abandonRun(activeRunID);
+        setStaleAbandoned(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [activeRunID, staleAbandoned, abandonRun]);
+
   const submitAnswer = useCallback(async (p: Phase & { kind: "in-match" }, animeId: string | null) => {
     if (submittingRef.current) return;
     submittingRef.current = true;
@@ -289,6 +352,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
             countdownMs={Math.max(0, phase.round.play_at_ms - serverNow(phase.clockOffsetMs))}
             run={phase.run}
             round={phase.round}
+            onExit={async () => { await abandonRun(phase.run.id); router.push("/play/endless"); }}
           />
         )}
         {phase.kind === "in-match" && (
@@ -297,10 +361,11 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
             run={phase.run}
             playedMs={Math.max(0, serverNow(phase.clockOffsetMs) - phase.round.play_at_ms)}
             onSubmit={(animeId) => submitAnswer(phase, animeId)}
+            onExit={async () => { await abandonRun(phase.run.id); router.push("/play/endless"); }}
           />
         )}
         {phase.kind === "reveal" && (
-          <RevealScreen result={phase.result} run={phase.result.run} timedOut={phase.timedOut} />
+          <RevealScreen result={phase.result} run={phase.result.run} timedOut={phase.timedOut} signedIn={!!user} />
         )}
         {phase.kind === "ended" && (
           <RunEndScreen
@@ -315,6 +380,12 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
             run={phase.run}
             summary={phase.summary}
             onRestart={() => setRunGen((g) => g + 1)}
+          />
+        )}
+        {staleAbandoned && (
+          <IdleSessionModal
+            onAck={() => { setStaleAbandoned(false); router.push("/play/endless"); }}
+            onRestart={() => { setStaleAbandoned(false); setRunGen((g) => g + 1); }}
           />
         )}
       </div>
@@ -360,19 +431,97 @@ function ErrorScreen({ message }: { message: string }) {
   );
 }
 
-function Hud({ run, mode, label }: { run: SoloRun; mode?: string; label?: string }) {
+// ExitRunButton — small ghost pill rendered in the in-match Hud. Calls
+// the parent's onExit (which POSTs abandon + navigates) so the player
+// can drop out without their run sitting open server-side. Without this
+// the only way out was a hard nav, which left the run resumable from
+// /me/current hours later — the bug we were asked to fix.
+function ExitRunButton({ onExit }: { onExit: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onExit}
+      className="game-exit-btn"
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        fontFamily: SOLO.mono, fontSize: 10, letterSpacing: "0.14em",
+        textTransform: "uppercase", color: SOLO.fg3,
+        padding: "7px 10px 7px 9px",
+        border: `1px solid ${SOLO.line2}`, borderRadius: 7,
+        background: "rgba(255,255,255,0.02)", lineHeight: 1, whiteSpace: "nowrap",
+        cursor: "pointer",
+      }}
+      aria-label="Exit run"
+    >
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M15 18l-6-6 6-6" />
+      </svg>
+      Exit run
+    </button>
+  );
+}
+
+// IdleSessionModal — shown when the visibilitychange listener detects
+// the user returned to a tab that had been backgrounded longer than
+// IDLE_ABANDON_MS. By the time this paints the run is already
+// abandoned on the server, so the modal's job is to (a) explain why
+// the page isn't where they left it and (b) route them somewhere
+// useful.
+function IdleSessionModal({ onAck, onRestart }: { onAck: () => void; onRestart: () => void }) {
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="idle-modal-title" style={{
+      position: "fixed", inset: 0, background: "rgba(6,4,12,0.86)",
+      backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 28, zIndex: 80,
+    }}>
+      <div style={{
+        background: SOLO.bg2, border: `1px solid ${SOLO.warn}`, borderRadius: 14,
+        padding: "28px 30px 24px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+        textAlign: "center", maxWidth: 420, boxShadow: `0 0 50px ${SOLO.warn}33`,
+      }}>
+        <Eyebrow color={SOLO.warn} dotColor={SOLO.warn}>Session ended</Eyebrow>
+        <h3 id="idle-modal-title" style={{ margin: 0, fontFamily: SOLO.sans, fontWeight: 700, fontSize: 22, letterSpacing: "-0.02em" }}>
+          You were idle too long.
+        </h3>
+        <p style={{ margin: 0, color: SOLO.fg2, fontSize: 14, lineHeight: 1.55 }}>
+          We closed your run after 15 seconds of being away so you don't drop back into a stale match.
+        </p>
+        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          <button type="button" onClick={onAck} style={{
+            background: "transparent", border: `1px solid ${SOLO.line2}`, color: SOLO.fg2,
+            borderRadius: 8, padding: "10px 16px", fontFamily: SOLO.sans, fontWeight: 600, fontSize: 13, cursor: "pointer",
+          }}>
+            Back to hub
+          </button>
+          <button type="button" onClick={onRestart} style={{
+            background: SOLO.accent, color: SOLO.bg, border: "none", borderRadius: 8,
+            padding: "10px 16px", fontFamily: SOLO.sans, fontWeight: 600, fontSize: 13, cursor: "pointer",
+            boxShadow: `0 0 18px ${SOLO.accent}44`,
+          }}>
+            New run
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Hud({ run, mode, label, onExit }: { run: SoloRun; mode?: string; label?: string; onExit?: () => void }) {
   return (
     <div className="game-hud" style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "18px 40px", borderBottom: `1px solid ${SOLO.line}`,
+      padding: "14px 40px", borderBottom: `1px solid ${SOLO.line}`,
     }}>
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {[0, 1, 2].map((i) => (
-          <Heart key={i} filled={i < run.lives} broken={i === run.lives && run.lives < 3} />
-        ))}
-        <span style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginLeft: 8, letterSpacing: "0.1em" }}>
-          {run.lives} left
-        </span>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        {onExit && <ExitRunButton onExit={onExit} />}
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {[0, 1, 2].map((i) => (
+            <Heart key={i} filled={i < run.lives} broken={i === run.lives && run.lives < 3} />
+          ))}
+          <span style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginLeft: 8, letterSpacing: "0.1em" }}>
+            {run.lives} left
+          </span>
+        </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
         <div style={{ fontFamily: SOLO.mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: SOLO.fg3 }}>
@@ -384,17 +533,17 @@ function Hud({ run, mode, label }: { run: SoloRun; mode?: string; label?: string
           </div>
         )}
       </div>
-      <BigNum value={`× ${run.streak}`} label={label ?? "streak"} size={36} align="right" />
+      <BigNum value={`× ${run.streak}`} label={label ?? "streak"} size={32} align="right" />
     </div>
   );
 }
 
-function ModeRevealScreen({ mode, countdownMs, run, round }: { mode: string; countdownMs: number; run: SoloRun; round: SoloRound }) {
+function ModeRevealScreen({ mode, countdownMs, run, round, onExit }: { mode: string; countdownMs: number; run: SoloRun; round: SoloRound; onExit: () => void }) {
   const countdown = Math.ceil(countdownMs / 1000);
   return (
     <>
       <TimerBar pct={0} />
-      <Hud run={run} />
+      <Hud run={run} onExit={onExit} />
       <div className="game-stage" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
         <div style={{
           position: "absolute", width: 800, height: 800, borderRadius: "50%",
@@ -431,7 +580,7 @@ function ModeRevealScreen({ mode, countdownMs, run, round }: { mode: string; cou
   );
 }
 
-function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; run: SoloRun; playedMs: number; onSubmit: (animeId: string | null) => void }) {
+function InMatchScreen({ round, run, playedMs, onSubmit, onExit }: { round: SoloRound; run: SoloRun; playedMs: number; onSubmit: (animeId: string | null) => void; onExit: () => void }) {
   // Keeps `--kbd-inset` on <html> in sync with the on-screen keyboard
   // height so the fixed-bottom search bar (and its suggestions) ride
   // above the keyboard instead of being covered.
@@ -488,28 +637,33 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
   return (
     <>
       <TimerBar pct={pct} danger={secsLeft < 5} />
-      <Hud run={run} mode={round.mode} />
-      <div className="game-stage" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 0 30px", position: "relative" }}>
+      <Hud run={run} mode={round.mode} onExit={onExit} />
+      {/* Stage padding tightened from 40/30 to 20/16 and the waveform's
+          intrinsic height reduced by passing a smaller `height` so the
+          whole in-match view fits inside a typical laptop viewport
+          (≥720px) without dropping the search input below the fold —
+          the desktop-scroll complaint in the bug list. */}
+      <div className="game-stage" style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "20px 0 16px", position: "relative", minHeight: 0 }}>
         <div className="game-clip-time" style={{
-          position: "absolute", top: 20, right: 40,
-          fontFamily: SOLO.mono, fontSize: 56, fontWeight: 500,
+          position: "absolute", top: 14, right: 40,
+          fontFamily: SOLO.mono, fontSize: 42, fontWeight: 500,
           letterSpacing: "-0.04em", color: secsLeft < 5 ? SOLO.danger : SOLO.fg, lineHeight: 1,
         }}>
-          {secsLeft.toFixed(1)}<s style={{ color: SOLO.fg4, fontSize: 32 }}>s</s>
+          {secsLeft.toFixed(1)}<s style={{ color: SOLO.fg4, fontSize: 24 }}>s</s>
         </div>
         <div className="game-clip-label" style={{
-          position: "absolute", top: 28, left: 40,
+          position: "absolute", top: 20, left: 40,
           fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3,
           letterSpacing: "0.14em", textTransform: "uppercase",
         }}>
           clip · {(round.clip_duration_ms / 1000).toFixed(0)}s
         </div>
         <Waveform played={pct} />
-        <div style={{ textAlign: "center", marginTop: 22, fontFamily: SOLO.sans, fontSize: 14, color: SOLO.fg3 }}>
+        <div style={{ textAlign: "center", marginTop: 12, fontFamily: SOLO.sans, fontSize: 13, color: SOLO.fg3 }}>
           Name the anime. ↵ to submit.
         </div>
       </div>
-      <div className="game-input" style={{ padding: "0 40px 32px", position: "relative" }}>
+      <div className="game-input" style={{ padding: "0 40px 22px", position: "relative" }}>
         {suggestions.length > 0 && (
           <div className="game-suggs" style={{
             position: "absolute", bottom: "100%", left: 40, right: 40,
@@ -520,49 +674,64 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
             <div style={{ padding: "10px 16px", fontFamily: SOLO.mono, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: SOLO.fg3, borderBottom: `1px solid ${SOLO.line}` }}>
               Anime matches
             </div>
-            {suggestions.map((s, i) => (
-              <div
-                key={s.id}
-                // pointerdown fires before the keyboard-close → viewport
-                // resize → click-cancellation cascade iOS Safari sometimes
-                // does when the user taps a suggestion. preventDefault()
-                // keeps the input focused so the keyboard stays put long
-                // enough for the submit to land.
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  onSubmit(s.id);
-                }}
-                onMouseEnter={() => setActiveIdx(i)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
-                  background: i === activeIdx ? SOLO.bg3 : "transparent",
-                  borderLeft: i === activeIdx ? `2px solid ${SOLO.accent}` : "2px solid transparent",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{
-                  width: 38, height: 52, borderRadius: 4,
-                  border: `1px solid ${SOLO.line}`, flexShrink: 0,
-                  overflow: "hidden",
-                  background: s.cover ? "transparent" : SOLO.bg2,
-                  backgroundImage: s.cover ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 6px, ${SOLO.bg2} 6px 7px)`,
-                }}>
-                  {s.cover && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={s.cover} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: SOLO.sans, fontWeight: 600, fontSize: 14, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
-                  <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>
-                    {s.year ? `${s.year}` : "—"}
+            {suggestions.map((s, i) => {
+              const active = i === activeIdx;
+              return (
+                <div
+                  key={s.id}
+                  role="button"
+                  tabIndex={0}
+                  // pointerdown fires before the keyboard-close → viewport
+                  // resize → click-cancellation cascade iOS Safari sometimes
+                  // does when the user taps a suggestion. preventDefault()
+                  // keeps the input focused so the keyboard stays put long
+                  // enough for the submit to land. Applied to *every* row so
+                  // the second/third suggestions are pickable too — the bug
+                  // was that the previous design only rendered an Enter-key
+                  // hint on the active row, which on mobile read as "the
+                  // others aren't tappable".
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    onSubmit(s.id);
+                  }}
+                  onMouseEnter={() => setActiveIdx(i)}
+                  className="game-sugg-row"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
+                    minHeight: 44,
+                    background: active ? SOLO.bg3 : "transparent",
+                    borderLeft: active ? `2px solid ${SOLO.accent}` : "2px solid transparent",
+                    cursor: "pointer",
+                    WebkitTapHighlightColor: "rgba(167,139,250,0.18)",
+                    touchAction: "manipulation",
+                  }}
+                >
+                  <div style={{
+                    width: 38, height: 52, borderRadius: 4,
+                    border: `1px solid ${SOLO.line}`, flexShrink: 0,
+                    overflow: "hidden",
+                    background: s.cover ? "transparent" : SOLO.bg2,
+                    backgroundImage: s.cover ? "none" : `repeating-linear-gradient(135deg, ${SOLO.bg3} 0 6px, ${SOLO.bg2} 6px 7px)`,
+                  }}>
+                    {s.cover && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.cover} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    )}
                   </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: SOLO.sans, fontWeight: 600, fontSize: 14, color: SOLO.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
+                    <div style={{ fontFamily: SOLO.mono, fontSize: 11, color: SOLO.fg3, marginTop: 2 }}>
+                      {s.year ? `${s.year}` : "—"}
+                    </div>
+                  </div>
+                  {/* Chevron on every row, not just the active one — the
+                      affordance "this is tappable" should be uniform. */}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={active ? SOLO.accent : SOLO.fg4} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flexShrink: 0 }}>
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
                 </div>
-                {i === activeIdx && (
-                  <span style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, border: `1px solid ${SOLO.line2}`, padding: "2px 6px", borderRadius: 3 }}>↵</span>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         <div style={{
@@ -594,7 +763,121 @@ function InMatchScreen({ round, run, playedMs, onSubmit }: { round: SoloRound; r
   );
 }
 
-function RevealScreen({ result, run, timedOut }: { result: SoloAnswerResponse; run: SoloRun; timedOut: boolean }) {
+// RateOpeningButton — inline 1–10 rater shown on each reveal card.
+// Compact form of /components/RatingPopup (no SSR-supplied count, no
+// avg). On submit it POSTs /api/rate and pushes a toast; on success it
+// stays visible as "rated N/10" so the player can re-pick. The reveal
+// card auto-advances after REVEAL_HOLD_MS so there's no Clear/Cancel —
+// keep it small and one-shot. Disabled when the user isn't signed in.
+function RateOpeningButton({
+  openingId,
+  signedIn,
+}: {
+  openingId: string;
+  signedIn: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [score, setScore] = useState<number | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const previewScore = hover ?? score ?? 0;
+
+  const commit = useCallback(async (n: number) => {
+    if (!signedIn || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ opening_id: openingId, score: n }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error ?? `Rating failed (${res.status})`);
+      }
+      setScore(n);
+      pushToast({ kind: "success", message: `Rated ${n}/10` });
+    } catch (err) {
+      pushToast({ kind: "error", message: err instanceof Error ? err.message : "Could not save rating" });
+    } finally {
+      setSaving(false);
+    }
+  }, [openingId, signedIn, saving]);
+
+  if (!signedIn) {
+    return (
+      <Link href="/login" className="reveal-rate-btn" style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        background: "transparent", border: `1px solid ${SOLO.line2}`, color: SOLO.fg2,
+        padding: "8px 14px", borderRadius: 6, fontFamily: SOLO.sans, fontSize: 12,
+        textDecoration: "none",
+      }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 3l2.6 5.9 6.4.6-4.9 4.3 1.5 6.3L12 17l-5.6 3.1 1.5-6.3L3 9.5l6.4-.6L12 3z" /></svg>
+        Log in to rate
+      </Link>
+    );
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        className="reveal-rate-btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          background: score !== null ? "rgba(167,139,250,0.12)" : "transparent",
+          border: `1px solid ${score !== null ? SOLO.accent : SOLO.line2}`,
+          color: score !== null ? SOLO.accent : SOLO.fg2,
+          padding: "8px 14px", borderRadius: 6, fontFamily: SOLO.sans, fontSize: 12,
+          cursor: "pointer",
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 3l2.6 5.9 6.4.6-4.9 4.3 1.5 6.3L12 17l-5.6 3.1 1.5-6.3L3 9.5l6.4-.6L12 3z" /></svg>
+        {score !== null ? <>Rated <strong style={{ marginLeft: 2 }}>{score}</strong>/10</> : "Rate"}
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", left: 0, top: "calc(100% + 6px)",
+          background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 8,
+          padding: 8, display: "flex", flexDirection: "column", gap: 6,
+          boxShadow: "0 14px 40px rgba(0,0,0,0.4)", zIndex: 10, minWidth: 260,
+        }} onMouseLeave={() => setHover(null)}>
+          <div style={{ display: "flex", gap: 3 }}>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+              <button
+                key={n}
+                type="button"
+                disabled={saving}
+                onMouseEnter={() => setHover(n)}
+                onFocus={() => setHover(n)}
+                onClick={() => commit(n)}
+                aria-label={`Rate ${n} out of 10`}
+                style={{
+                  flex: 1, minWidth: 0, padding: "8px 0",
+                  background: n <= previewScore ? SOLO.accent : SOLO.bg3,
+                  color: n <= previewScore ? SOLO.bg : SOLO.fg3,
+                  border: 0, borderRadius: 4,
+                  fontFamily: SOLO.mono, fontWeight: 600, fontSize: 12,
+                  cursor: saving ? "wait" : "pointer",
+                }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            {previewScore > 0 ? `${previewScore} / 10` : "Pick a score"}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RevealScreen({ result, run, timedOut, signedIn }: { result: SoloAnswerResponse; run: SoloRun; timedOut: boolean; signedIn: boolean }) {
   const correct = result.round_result.correct;
   const op = result.round_result.correct_opening;
   // Distinguish the three round outcomes in the eyebrow: a hit, an
@@ -660,6 +943,15 @@ function RevealScreen({ result, run, timedOut }: { result: SoloAnswerResponse; r
                 <StatCell value={op.avg_rating ? op.avg_rating.toFixed(1) : "—"} label="community" color={SOLO.accent} />
               )}
             </div>
+            {/* Rate-this-opening — Endless players asked for an inline
+                rater so they can score what they just heard without
+                leaving the run. Reveal card auto-advances, so the popup
+                is one-shot (no clear button). */}
+            {op && (
+              <div className="reveal-actions" style={{ marginTop: 18 }}>
+                <RateOpeningButton openingId={op.id} signedIn={signedIn} />
+              </div>
+            )}
           </div>
         </div>
       </div>
