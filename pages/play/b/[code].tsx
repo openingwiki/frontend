@@ -20,7 +20,7 @@ import {
 } from "@/lib/pvp";
 import type { User } from "@/lib/types";
 import { useKeyboardInset } from "@/lib/useKeyboardInset";
-import { pushToast } from "@/lib/toast";
+import MatchRatePopup from "@/components/MatchRatePopup";
 
 // Mirrors the constant in /play/run.tsx. Tab-hidden for this long → we
 // POST leave() and surface the "session ended" modal so the player
@@ -1189,10 +1189,13 @@ function RoundEndView({ result, view, meID, signedIn, onExit }: { result: RoundE
         <div className="reveal-eyebrow" style={{ position: "absolute", top: 30, left: 40 }}>
           <Eyebrow color={accent} dotColor={accent}>{eyebrow}</Eyebrow>
         </div>
+        {/* overflow visible — the rate popover (portaled) doesn't need
+            it, but flipping from "hidden" matches the design source
+            and lets the inset glow ring bleed naturally. */}
         <div className="reveal-card" style={{
           display: "grid", gridTemplateColumns: "auto 1fr", gap: 40, maxWidth: 880,
           background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 14,
-          padding: 36, position: "relative", overflow: "hidden",
+          padding: 36, position: "relative",
         }}>
           <div style={{
             position: "absolute", inset: -1, borderRadius: 14, pointerEvents: "none",
@@ -1237,123 +1240,17 @@ function RoundEndView({ result, view, meID, signedIn, onExit }: { result: RoundE
                 </div>
               ) : null}
             </div>
-            {/* Inline rater — same shape as the Endless reveal card so
-                players can score the opening they just heard without
-                bouncing to the catalog page. */}
+            {/* Same widget on the Solo reveal — see components/
+                MatchRatePopup. Portaled so the dropdown isn't clipped
+                by the reveal-card's overflow rules. */}
             {op.id && (
               <div className="reveal-actions" style={{ marginTop: 18 }}>
-                <PvpRateButton openingId={op.id} signedIn={signedIn} />
+                <MatchRatePopup openingId={op.id} signedIn={signedIn} />
               </div>
             )}
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-// Twin of run.tsx's RateOpeningButton, inlined here so the PvP page
-// doesn't pull the run-flow file into its bundle. POSTs /api/rate and
-// pushes a toast on success/failure; no clear button (the reveal card
-// auto-advances).
-function PvpRateButton({ openingId, signedIn }: { openingId: string; signedIn: boolean }) {
-  const [open, setOpen] = useState(false);
-  const [score, setScore] = useState<number | null>(null);
-  const [hover, setHover] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  const previewScore = hover ?? score ?? 0;
-
-  const commit = useCallback(async (n: number) => {
-    if (!signedIn || saving) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/rate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ opening_id: openingId, score: n }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error ?? `Rating failed (${res.status})`);
-      }
-      setScore(n);
-      pushToast({ kind: "success", message: `Rated ${n}/10` });
-    } catch (err) {
-      pushToast({ kind: "error", message: err instanceof Error ? err.message : "Could not save rating" });
-    } finally {
-      setSaving(false);
-    }
-  }, [openingId, signedIn, saving]);
-
-  if (!signedIn) {
-    return (
-      <Link href="/login" className="reveal-rate-btn" style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        background: "transparent", border: `1px solid ${SOLO.line2}`, color: SOLO.fg2,
-        padding: "8px 14px", borderRadius: 6, fontFamily: SOLO.sans, fontSize: 12,
-        textDecoration: "none",
-      }}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 3l2.6 5.9 6.4.6-4.9 4.3 1.5 6.3L12 17l-5.6 3.1 1.5-6.3L3 9.5l6.4-.6L12 3z" /></svg>
-        Log in to rate
-      </Link>
-    );
-  }
-
-  return (
-    <div style={{ position: "relative" }}>
-      <button
-        type="button"
-        className="reveal-rate-btn"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          background: score !== null ? "rgba(167,139,250,0.12)" : "transparent",
-          border: `1px solid ${score !== null ? SOLO.accent : SOLO.line2}`,
-          color: score !== null ? SOLO.accent : SOLO.fg2,
-          padding: "8px 14px", borderRadius: 6, fontFamily: SOLO.sans, fontSize: 12,
-          cursor: "pointer",
-        }}
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 3l2.6 5.9 6.4.6-4.9 4.3 1.5 6.3L12 17l-5.6 3.1 1.5-6.3L3 9.5l6.4-.6L12 3z" /></svg>
-        {score !== null ? <>Rated <strong style={{ marginLeft: 2 }}>{score}</strong>/10</> : "Rate"}
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", left: 0, top: "calc(100% + 6px)",
-          background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 8,
-          padding: 8, display: "flex", flexDirection: "column", gap: 6,
-          boxShadow: "0 14px 40px rgba(0,0,0,0.4)", zIndex: 10, minWidth: 260,
-        }} onMouseLeave={() => setHover(null)}>
-          <div style={{ display: "flex", gap: 3 }}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <button
-                key={n}
-                type="button"
-                disabled={saving}
-                onMouseEnter={() => setHover(n)}
-                onFocus={() => setHover(n)}
-                onClick={() => commit(n)}
-                aria-label={`Rate ${n} out of 10`}
-                style={{
-                  flex: 1, minWidth: 0, padding: "8px 0",
-                  background: n <= previewScore ? SOLO.accent : SOLO.bg3,
-                  color: n <= previewScore ? SOLO.bg : SOLO.fg3,
-                  border: 0, borderRadius: 4,
-                  fontFamily: SOLO.mono, fontWeight: 600, fontSize: 12,
-                  cursor: saving ? "wait" : "pointer",
-                }}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          <div style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            {previewScore > 0 ? `${previewScore} / 10` : "Pick a score"}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
