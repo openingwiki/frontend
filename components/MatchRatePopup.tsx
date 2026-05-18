@@ -34,10 +34,13 @@ interface Props {
 //      already prints "community ★ X.X" in its stats row, so a second
 //      number would be visual noise.
 //
-//   4. Rating state is local: we don't preload the viewer's prior
-//      score from the round payload (it isn't there). The button
-//      shows "Rate" until the user picks a number, then "Rated N".
-//      Clearing reverts to "Rate".
+//   4. Rating state is seeded from the opening's `viewer_rating` field:
+//      on mount (and on every openingId change), we fetch
+//      /api/v1/openings/{id} and use the returned viewer_rating as the
+//      starting score, so a player who already rated an opening sees
+//      "Rated N" on the trigger and the chip pre-filled — they don't
+//      have to remember what they gave it last time. Anonymous viewers
+//      skip the fetch (the trigger is a Log-in link anyway).
 export default function MatchRatePopup({ openingId, signedIn }: Props) {
   const [open, setOpen] = useState(false);
   const [score, setScore] = useState<number | null>(null);
@@ -58,6 +61,36 @@ export default function MatchRatePopup({ openingId, signedIn }: Props) {
     setHover(null);
     setAnchor(null);
   }, [openingId]);
+
+  // Prefetch the viewer's existing rating for this opening, if any.
+  // The opening-detail endpoint already includes `viewer_rating` for
+  // signed-in callers — same field /openings/[id] reads — so we don't
+  // need a dedicated route. AbortController guards against the reveal
+  // advancing to the next opening while this request is in flight (we
+  // don't want round N+1 displaying N's score).
+  useEffect(() => {
+    if (!signedIn) return;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`/api/v1/openings/${encodeURIComponent(openingId)}`, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const body = await res.json();
+        const vr = body?.data?.viewer_rating;
+        if (typeof vr === "number" && vr >= 1 && vr <= 10) {
+          setScore(vr);
+        }
+      } catch {
+        // Network/abort — leave score null, trigger stays "Rate". A
+        // failed prefetch is harmless: if the user picks a new score
+        // the POST still goes through.
+      }
+    })();
+    return () => controller.abort();
+  }, [openingId, signedIn]);
 
   // Anchor calculation. Runs when we open the popup and on resize/
   // scroll while open so the popover tracks the trigger. We measure
