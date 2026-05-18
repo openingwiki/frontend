@@ -12,6 +12,9 @@ interface Props {
   // link instead of opening a popover. signedIn is preferred over a
   // generic disabled state so the link gives the user a path forward.
   signedIn: boolean;
+  // Called whenever the popover opens or closes. Used by the reveal
+  // screen to pause the auto-advance timer while the user is rating.
+  onOpenChange?: (open: boolean) => void;
 }
 
 // MatchRatePopup — rate-this-opening control surfaced on every reveal
@@ -41,7 +44,7 @@ interface Props {
 //      "Rated N" on the trigger and the chip pre-filled — they don't
 //      have to remember what they gave it last time. Anonymous viewers
 //      skip the fetch (the trigger is a Log-in link anyway).
-export default function MatchRatePopup({ openingId, signedIn }: Props) {
+export default function MatchRatePopup({ openingId, signedIn, onOpenChange }: Props) {
   const [open, setOpen] = useState(false);
   const [score, setScore] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -61,6 +64,13 @@ export default function MatchRatePopup({ openingId, signedIn }: Props) {
     setHover(null);
     setAnchor(null);
   }, [openingId]);
+
+  // Notify the parent (reveal screen) whenever the popover opens or closes
+  // so it can pause the auto-advance timer.
+  useEffect(() => {
+    onOpenChange?.(open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Prefetch the viewer's existing rating for this opening, if any.
   // The opening-detail endpoint already includes `viewer_rating` for

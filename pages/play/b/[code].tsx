@@ -165,8 +165,25 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       .then(() => setAudioBlocked(false))
       .catch(() => setAudioBlocked(true));
   }, []);
+
+  // Called by RoundEndView's MatchRatePopup when the popup opens/closes.
+  // When it closes, we apply any buffered round.start that arrived while
+  // the user was picking a rating.
+  const handleRatingOpenChange = useCallback((open: boolean) => {
+    ratingOpenRef.current = open;
+    if (!open && bufferedRoundStartRef.current) {
+      const d = bufferedRoundStartRef.current;
+      bufferedRoundStartRef.current = null;
+      setPhase({ kind: "reveal", round: d, countdownMs: MODE_REVEAL_MS });
+    }
+  }, []);
   const sockRef = useRef<PvPSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Pause the round transition while the rating popup is open.
+  const ratingOpenRef = useRef(false);
+  // When round.start arrives while the popup is open, we buffer it here
+  // and apply it as soon as the user closes the popup.
+  const bufferedRoundStartRef = useRef<RoundStartData | null>(null);
 
   // Refresh view from REST on mount + any time the phase resets to
   // lobby. Cheap; saves a manual sync after REST mutations.
@@ -257,7 +274,14 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       }
       case "round.start": {
         const d = f.data as RoundStartData;
-        setPhase({ kind: "reveal", round: d, countdownMs: MODE_REVEAL_MS });
+        if (ratingOpenRef.current) {
+          // User is rating the current opening — buffer this frame and
+          // apply it when they close the popup.
+          bufferedRoundStartRef.current = d;
+        } else {
+          bufferedRoundStartRef.current = null;
+          setPhase({ kind: "reveal", round: d, countdownMs: MODE_REVEAL_MS });
+        }
         break;
       }
       case "round.snapshot": {
@@ -528,7 +552,7 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
           />
         )}
         {phase.kind === "round-end" && (
-          <RoundEndView result={phase.result} view={view} meID={user.id} signedIn={!!user} onExit={handleExitMatch} />
+          <RoundEndView result={phase.result} view={view} meID={user.id} signedIn={!!user} onExit={handleExitMatch} onRatingOpen={handleRatingOpenChange} />
         )}
         {phase.kind === "ended" && (
           <MatchEndView
@@ -1122,7 +1146,7 @@ function PlayingView({ view, round, playedMs, meID, score, audioBlocked, onResum
   );
 }
 
-function RoundEndView({ result, view, meID, signedIn, onExit }: { result: RoundEndData; view: PvPMatchView; meID: string; signedIn: boolean; onExit?: () => void }) {
+function RoundEndView({ result, view, meID, signedIn, onExit, onRatingOpen }: { result: RoundEndData; view: PvPMatchView; meID: string; signedIn: boolean; onExit?: () => void; onRatingOpen?: (open: boolean) => void }) {
   const winner = result.winner_user_id;
   const youWon = winner === meID;
   const oppWon = !!winner && !youWon;
@@ -1245,7 +1269,7 @@ function RoundEndView({ result, view, meID, signedIn, onExit }: { result: RoundE
                 by the reveal-card's overflow rules. */}
             {op.id && (
               <div className="reveal-actions" style={{ marginTop: 18 }}>
-                <MatchRatePopup openingId={op.id} signedIn={signedIn} />
+                <MatchRatePopup openingId={op.id} signedIn={signedIn} onOpenChange={onRatingOpen} />
               </div>
             )}
           </div>
