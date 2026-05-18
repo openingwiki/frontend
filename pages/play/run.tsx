@@ -20,6 +20,33 @@ import { pushToast } from "@/lib/toast";
 // and was still in the same match" complaint that motivated this.
 const IDLE_ABANDON_MS = 15_000;
 
+// sessionStorage flag that forces the next /play/run mount to start a
+// fresh run instead of resuming whatever /me/current points at. Set
+// from the Exit button and the "Back to hub" path on the idle modal.
+// Why this exists: the abandon POST is best-effort — if it 4xx's
+// (e.g. transient CSRF or network), the player still expects to be
+// out of the run. Without this flag, the next /me/current would
+// re-hydrate the still-active run on the server and we'd land back
+// in the same session that the user just clicked Exit on, which is
+// the exact bug the user reported.
+const FRESH_RUN_FLAG = "ow:force-fresh-run";
+
+function markForceFreshRun() {
+  if (typeof window === "undefined") return;
+  try { window.sessionStorage.setItem(FRESH_RUN_FLAG, "1"); } catch { /* */ }
+}
+
+function consumeForceFreshRun(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const v = window.sessionStorage.getItem(FRESH_RUN_FLAG);
+    if (v) window.sessionStorage.removeItem(FRESH_RUN_FLAG);
+    return v === "1";
+  } catch {
+    return false;
+  }
+}
+
 interface Props {
   user: User | null;
   modQueueCount: number;
@@ -125,11 +152,16 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
   // resume and goes straight to start.
   useEffect(() => {
     let abandoned = false;
+    // Consume the force-fresh flag once per mount. A previous Exit
+    // (or idle-modal "Back to hub") sets it; we skip the resume
+    // probe and go straight to startRun(), which on the backend
+    // closes any lingering active run before issuing a new one.
+    const forceFresh = consumeForceFreshRun();
     setPhase({ kind: "starting" });
     submittingRef.current = false;
     const start = async () => {
       try {
-        if (runGen === 0) {
+        if (runGen === 0 && !forceFresh) {
           const current = await playClient.currentRun();
           if (current?.current_round) {
             if (abandoned) return;
@@ -352,7 +384,14 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
             countdownMs={Math.max(0, phase.round.play_at_ms - serverNow(phase.clockOffsetMs))}
             run={phase.run}
             round={phase.round}
-            onExit={async () => { await abandonRun(phase.run.id); router.push("/play/endless"); }}
+            onExit={async () => {
+              // Flag-before-await: if the abandon POST 4xx's, we still
+              // want the next /play/run mount to start fresh instead of
+              // resuming the run the player just exited.
+              markForceFreshRun();
+              await abandonRun(phase.run.id);
+              router.push("/play/endless");
+            }}
           />
         )}
         {phase.kind === "in-match" && (
@@ -361,7 +400,14 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
             run={phase.run}
             playedMs={Math.max(0, serverNow(phase.clockOffsetMs) - phase.round.play_at_ms)}
             onSubmit={(animeId) => submitAnswer(phase, animeId)}
-            onExit={async () => { await abandonRun(phase.run.id); router.push("/play/endless"); }}
+            onExit={async () => {
+              // Flag-before-await: if the abandon POST 4xx's, we still
+              // want the next /play/run mount to start fresh instead of
+              // resuming the run the player just exited.
+              markForceFreshRun();
+              await abandonRun(phase.run.id);
+              router.push("/play/endless");
+            }}
           />
         )}
         {phase.kind === "reveal" && (
@@ -384,7 +430,14 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
         )}
         {staleAbandoned && (
           <IdleSessionModal
-            onAck={() => { setStaleAbandoned(false); router.push("/play/endless"); }}
+            onAck={() => {
+              // Idle-abandon may have raced the backend write the same
+              // way the manual Exit can — mark the flag so the next
+              // visit to /play/run doesn't dredge the stale run back up.
+              markForceFreshRun();
+              setStaleAbandoned(false);
+              router.push("/play/endless");
+            }}
             onRestart={() => { setStaleAbandoned(false); setRunGen((g) => g + 1); }}
           />
         )}
