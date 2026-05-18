@@ -83,7 +83,7 @@ type Phase =
   // because the player answered every opening in the catalog. Renders
   // a celebration screen instead of the regular run-over summary.
   | { kind: "library-cleared"; run: SoloRun; summary: SoloRunSummary }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; retryable?: boolean };
 
 const REVEAL_HOLD_MS = 3500;
 
@@ -115,6 +115,9 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
   // reveal), but on mobile that one-frame flash reads as a page-shake.
   // The ref keeps the in-match UI on screen until the reveal arrives.
   const submittingRef = useRef(false);
+  // Tracks whether the rating popup is open on the reveal screen so the
+  // auto-advance timer waits for the user to finish rating.
+  const ratingOpenRef = useRef(false);
   // Surfaces a "session ended" modal when the user returns to a
   // backgrounded tab more than IDLE_ABANDON_MS after they left it. The
   // run itself is already abandoned on the server by that point; the
@@ -200,7 +203,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
         setPhase({ kind: "mode-reveal", tick: 0, round, run, clockOffsetMs: clockOffsetFor(round) });
       } catch (err: any) {
         if (abandoned) return;
-        setPhase({ kind: "error", message: err?.message ?? "Failed to start run" });
+        setPhase({ kind: "error", message: err?.message ?? "Failed to start run", retryable: true });
       }
     };
     start();
@@ -262,15 +265,24 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
 
   // 4. reveal → auto-advance after REVEAL_HOLD_MS. If the result was
   // run-over the server has already attached a summary; we land on the
-  // ended phase directly.
+  // ended phase directly. The timer re-polls every 500 ms when the
+  // rating popup is open so the user can finish rating before advancing.
   useEffect(() => {
     if (phase.kind !== "reveal") return;
     const timeUntilAdvance = phase.nextAt - Date.now();
-    if (timeUntilAdvance <= 0) {
+    let t: ReturnType<typeof setTimeout>;
+    const tryAdvance = () => {
+      if (ratingOpenRef.current) {
+        t = setTimeout(tryAdvance, 500);
+        return;
+      }
       advanceFromReveal(phase);
-      return;
+    };
+    if (timeUntilAdvance <= 0) {
+      tryAdvance();
+    } else {
+      t = setTimeout(tryAdvance, timeUntilAdvance);
     }
-    const t = setTimeout(() => advanceFromReveal(phase), timeUntilAdvance);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
@@ -377,7 +389,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
       <div data-mobile-game style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "100vh", fontFamily: SOLO.sans, display: "flex", flexDirection: "column" }}>
         <TopbarSolo />
         {phase.kind === "starting" && <CenterMessage text="Loading run…" />}
-        {phase.kind === "error" && <ErrorScreen message={phase.message} />}
+        {phase.kind === "error" && <ErrorScreen message={phase.message} onRetry={phase.retryable ? () => setRunGen((g) => g + 1) : undefined} />}
         {phase.kind === "mode-reveal" && (
           <ModeRevealScreen
             mode={phase.round.mode}
@@ -411,7 +423,7 @@ export default function SoloRunPage({ user, modQueueCount }: Props) {
           />
         )}
         {phase.kind === "reveal" && (
-          <RevealScreen result={phase.result} run={phase.result.run} timedOut={phase.timedOut} signedIn={!!user} />
+          <RevealScreen result={phase.result} run={phase.result.run} timedOut={phase.timedOut} signedIn={!!user} onRatingOpen={(open) => { ratingOpenRef.current = open; }} />
         )}
         {phase.kind === "ended" && (
           <RunEndScreen
@@ -474,12 +486,23 @@ function CenterMessage({ text }: { text: string }) {
   );
 }
 
-function ErrorScreen({ message }: { message: string }) {
+function ErrorScreen({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
       <Eyebrow color={SOLO.danger} dotColor={SOLO.danger}>Something went wrong</Eyebrow>
       <div style={{ color: SOLO.fg, fontSize: 18 }}>{message}</div>
-      <Link href="/play/endless" style={{ color: SOLO.accent, fontFamily: SOLO.mono, fontSize: 13, textDecoration: "none" }}>back to hub →</Link>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        {onRetry && (
+          <button onClick={onRetry} style={{
+            background: SOLO.accent, color: SOLO.bg, border: "none", borderRadius: 8,
+            padding: "10px 18px", fontWeight: 600, fontSize: 13, cursor: "pointer",
+            fontFamily: SOLO.sans,
+          }}>
+            Try again
+          </button>
+        )}
+        <Link href="/play/endless" style={{ color: SOLO.accent, fontFamily: SOLO.mono, fontSize: 13, textDecoration: "none" }}>back to hub →</Link>
+      </div>
     </div>
   );
 }
@@ -816,7 +839,7 @@ function InMatchScreen({ round, run, playedMs, onSubmit, onExit }: { round: Solo
   );
 }
 
-function RevealScreen({ result, run, timedOut, signedIn }: { result: SoloAnswerResponse; run: SoloRun; timedOut: boolean; signedIn: boolean }) {
+function RevealScreen({ result, run, timedOut, signedIn, onRatingOpen }: { result: SoloAnswerResponse; run: SoloRun; timedOut: boolean; signedIn: boolean; onRatingOpen?: (open: boolean) => void }) {
   const correct = result.round_result.correct;
   const op = result.round_result.correct_opening;
   // Distinguish the three round outcomes in the eyebrow: a hit, an
@@ -894,7 +917,7 @@ function RevealScreen({ result, run, timedOut, signedIn }: { result: SoloAnswerR
                 the reveal card's clip rect. */}
             {op && (
               <div className="reveal-actions" style={{ marginTop: 18 }}>
-                <MatchRatePopup openingId={op.id} signedIn={signedIn} />
+                <MatchRatePopup openingId={op.id} signedIn={signedIn} onOpenChange={onRatingOpen} />
               </div>
             )}
           </div>
