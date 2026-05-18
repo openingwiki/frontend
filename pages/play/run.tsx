@@ -12,7 +12,7 @@ import type {
 } from "@/lib/play";
 import type { User } from "@/lib/types";
 import { useKeyboardInset } from "@/lib/useKeyboardInset";
-import { pushToast } from "@/lib/toast";
+import MatchRatePopup from "@/components/MatchRatePopup";
 
 // How long the player can have the run page backgrounded (tab hidden,
 // app switched away) before the run is auto-abandoned on return. Mirrors
@@ -763,120 +763,6 @@ function InMatchScreen({ round, run, playedMs, onSubmit, onExit }: { round: Solo
   );
 }
 
-// RateOpeningButton — inline 1–10 rater shown on each reveal card.
-// Compact form of /components/RatingPopup (no SSR-supplied count, no
-// avg). On submit it POSTs /api/rate and pushes a toast; on success it
-// stays visible as "rated N/10" so the player can re-pick. The reveal
-// card auto-advances after REVEAL_HOLD_MS so there's no Clear/Cancel —
-// keep it small and one-shot. Disabled when the user isn't signed in.
-function RateOpeningButton({
-  openingId,
-  signedIn,
-}: {
-  openingId: string;
-  signedIn: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [score, setScore] = useState<number | null>(null);
-  const [hover, setHover] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  const previewScore = hover ?? score ?? 0;
-
-  const commit = useCallback(async (n: number) => {
-    if (!signedIn || saving) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/rate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ opening_id: openingId, score: n }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error ?? `Rating failed (${res.status})`);
-      }
-      setScore(n);
-      pushToast({ kind: "success", message: `Rated ${n}/10` });
-    } catch (err) {
-      pushToast({ kind: "error", message: err instanceof Error ? err.message : "Could not save rating" });
-    } finally {
-      setSaving(false);
-    }
-  }, [openingId, signedIn, saving]);
-
-  if (!signedIn) {
-    return (
-      <Link href="/login" className="reveal-rate-btn" style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        background: "transparent", border: `1px solid ${SOLO.line2}`, color: SOLO.fg2,
-        padding: "8px 14px", borderRadius: 6, fontFamily: SOLO.sans, fontSize: 12,
-        textDecoration: "none",
-      }}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 3l2.6 5.9 6.4.6-4.9 4.3 1.5 6.3L12 17l-5.6 3.1 1.5-6.3L3 9.5l6.4-.6L12 3z" /></svg>
-        Log in to rate
-      </Link>
-    );
-  }
-
-  return (
-    <div style={{ position: "relative" }}>
-      <button
-        type="button"
-        className="reveal-rate-btn"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 6,
-          background: score !== null ? "rgba(167,139,250,0.12)" : "transparent",
-          border: `1px solid ${score !== null ? SOLO.accent : SOLO.line2}`,
-          color: score !== null ? SOLO.accent : SOLO.fg2,
-          padding: "8px 14px", borderRadius: 6, fontFamily: SOLO.sans, fontSize: 12,
-          cursor: "pointer",
-        }}
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 3l2.6 5.9 6.4.6-4.9 4.3 1.5 6.3L12 17l-5.6 3.1 1.5-6.3L3 9.5l6.4-.6L12 3z" /></svg>
-        {score !== null ? <>Rated <strong style={{ marginLeft: 2 }}>{score}</strong>/10</> : "Rate"}
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", left: 0, top: "calc(100% + 6px)",
-          background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 8,
-          padding: 8, display: "flex", flexDirection: "column", gap: 6,
-          boxShadow: "0 14px 40px rgba(0,0,0,0.4)", zIndex: 10, minWidth: 260,
-        }} onMouseLeave={() => setHover(null)}>
-          <div style={{ display: "flex", gap: 3 }}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <button
-                key={n}
-                type="button"
-                disabled={saving}
-                onMouseEnter={() => setHover(n)}
-                onFocus={() => setHover(n)}
-                onClick={() => commit(n)}
-                aria-label={`Rate ${n} out of 10`}
-                style={{
-                  flex: 1, minWidth: 0, padding: "8px 0",
-                  background: n <= previewScore ? SOLO.accent : SOLO.bg3,
-                  color: n <= previewScore ? SOLO.bg : SOLO.fg3,
-                  border: 0, borderRadius: 4,
-                  fontFamily: SOLO.mono, fontWeight: 600, fontSize: 12,
-                  cursor: saving ? "wait" : "pointer",
-                }}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          <div style={{ fontFamily: SOLO.mono, fontSize: 10, color: SOLO.fg4, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            {previewScore > 0 ? `${previewScore} / 10` : "Pick a score"}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function RevealScreen({ result, run, timedOut, signedIn }: { result: SoloAnswerResponse; run: SoloRun; timedOut: boolean; signedIn: boolean }) {
   const correct = result.round_result.correct;
   const op = result.round_result.correct_opening;
@@ -901,10 +787,16 @@ function RevealScreen({ result, run, timedOut, signedIn }: { result: SoloAnswerR
             {eyebrowText}
           </Eyebrow>
         </div>
+        {/* overflow: visible (default) — was previously "hidden" to
+            contain the inset glow ring, but that clipped the rate
+            popover off the bottom edge. The portaled popover no longer
+            needs this card's overflow to be open, but flipping it
+            keeps any future absolute-positioned descendants visible
+            and matches the design source. */}
         <div className="reveal-card" style={{
           display: "grid", gridTemplateColumns: "auto 1fr", gap: 40, maxWidth: 880,
           background: SOLO.bg2, border: `1px solid ${SOLO.line2}`, borderRadius: 14,
-          padding: 36, position: "relative", overflow: "hidden",
+          padding: 36, position: "relative",
         }}>
           <div style={{
             position: "absolute", inset: -1, borderRadius: 14, pointerEvents: "none",
@@ -943,13 +835,13 @@ function RevealScreen({ result, run, timedOut, signedIn }: { result: SoloAnswerR
                 <StatCell value={op.avg_rating ? op.avg_rating.toFixed(1) : "—"} label="community" color={SOLO.accent} />
               )}
             </div>
-            {/* Rate-this-opening — Endless players asked for an inline
-                rater so they can score what they just heard without
-                leaving the run. Reveal card auto-advances, so the popup
-                is one-shot (no clear button). */}
+            {/* Rate-this-opening — same widget on every reveal card in
+                Endless / 1v1. See components/MatchRatePopup for the
+                portal-based positioning that keeps the dropdown out of
+                the reveal card's clip rect. */}
             {op && (
               <div className="reveal-actions" style={{ marginTop: 18 }}>
-                <RateOpeningButton openingId={op.id} signedIn={signedIn} />
+                <MatchRatePopup openingId={op.id} signedIn={signedIn} />
               </div>
             )}
           </div>

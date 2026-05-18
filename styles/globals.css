@@ -3509,6 +3509,167 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
   }
 }
 
+/* ── MATCH RATE POPUP — inline 1-10 rater on reveal cards (Solo + PvP). ──
+   Visual matches the design in /Downloads/PvP Match-2.html: small Rate
+   pill with optional score chip, dropdown panel with 10 number buttons,
+   "Clear" + auto-save hint in the foot. Logic mirrors the catalog's
+   RatingPopup (Outside-click / Escape close, toast on save).
+
+   The popup is portaled to <body> with position:fixed so it can't be
+   clipped by an ancestor's overflow:hidden — the reveal card uses
+   overflow:hidden for its inset glow ring, which used to chop the
+   bottom off the dropdown. */
+.match-rate-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--bg-3);
+  color: var(--fg-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s, box-shadow .15s;
+}
+.match-rate-trigger:hover { color: var(--fg); border-color: var(--accent); }
+.match-rate-trigger .star { color: var(--accent); flex-shrink: 0; }
+.match-rate-trigger .chev { color: var(--fg-3); transition: transform .15s; flex-shrink: 0; }
+.match-rate-trigger.open {
+  color: var(--fg);
+  background: var(--bg-2);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(167,139,250,.15);
+}
+.match-rate-trigger.open .chev { transform: rotate(180deg); color: var(--accent); }
+.match-rate-trigger.rated { color: var(--fg); border-color: var(--accent); }
+.match-rate-trigger .score-chip {
+  margin-left: 2px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(167,139,250,.16);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.match-rate-pop {
+  position: fixed;
+  width: 300px;
+  background: var(--bg-2);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 14px;
+  z-index: 1000;
+  box-shadow: 0 18px 50px -8px rgba(0,0,0,.65), 0 0 0 4px rgba(167,139,250,.12);
+  /* Below-trigger by default. open-up flips the transform so the
+     popover's bottom edge aligns to the trigger's top, used when
+     there's not enough room below (e.g. reveal card near viewport
+     bottom on a short laptop). */
+}
+.match-rate-pop.open-up {
+  transform: translateY(-100%);
+}
+.match-rate-pop .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+  gap: 10px;
+}
+.match-rate-pop .h-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.match-rate-pop .h-current {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
+}
+.match-rate-pop .h-current em { font-style: normal; color: var(--fg-4); }
+.match-rate-pop .rate10 { display: flex; gap: 3px; }
+.match-rate-pop .rate10 button {
+  flex: 1;
+  height: 30px;
+  border-radius: 4px;
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  display: inline-grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  cursor: pointer;
+  transition: all .12s;
+  padding: 0;
+}
+.match-rate-pop .rate10 button:hover:not(:disabled) { color: var(--fg); border-color: var(--accent); }
+.match-rate-pop .rate10 button.on {
+  background: var(--accent);
+  color: var(--accent-ink, #0c0a14);
+  border-color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(167,139,250,.4);
+}
+.match-rate-pop .rate10 button:disabled { cursor: wait; opacity: .8; }
+.match-rate-pop .foot {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.match-rate-pop .foot-hint {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-4);
+  letter-spacing: 0.04em;
+}
+.match-rate-pop .foot .clr {
+  color: var(--fg-3);
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.match-rate-pop .foot .clr:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--line-2);
+}
+
+/* Mobile: narrow viewports can't fit the 300px popover anchored to
+   the trigger. We stretch it to full-width with a small gutter so
+   the user always sees the whole 1-10 row. The portal layer is on
+   document.body so we can use viewport units freely. */
+@media (max-width: 720px) {
+  .match-rate-pop {
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+  }
+  .match-rate-pop .rate10 button {
+    height: 40px;
+    font-size: 13px;
+  }
+}
+
 /* ── GAME PAGES (Solo run, PvP match) — mobile ─────────────────────────── */
 @media (max-width: 720px) {
   /* On the run pages the global Topbar/MobileNav are hidden — they have
@@ -3536,10 +3697,11 @@ footer a:hover { color: var(--fg-2); background: var(--bg-2); }
     padding: 14px 16px !important;
     min-height: 48px !important;
   }
-  /* Rate-this-opening pill on reveal cards. Full-width on mobile so it
-     sits naturally below the stats row instead of fighting for the
-     line. */
-  [data-mobile-game] .reveal-rate-btn {
+  /* Rate trigger on reveal cards — full-width on mobile so it sits
+     naturally below the stats row instead of fighting for the line.
+     The popover handles its own mobile sizing via the .match-rate-pop
+     mobile rules further down. */
+  [data-mobile-game] .match-rate-trigger {
     width: 100%;
     justify-content: center !important;
     padding: 10px 14px !important;
