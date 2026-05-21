@@ -174,6 +174,11 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
     if (!open && bufferedRoundStartRef.current) {
       const d = bufferedRoundStartRef.current;
       bufferedRoundStartRef.current = null;
+      // Preload now — the round.start preload was skipped while rating was open.
+      if (audioRef.current) {
+        audioRef.current.src = d.clip_url;
+        audioRef.current.load();
+      }
       setPhase({ kind: "reveal", round: d, countdownMs: MODE_REVEAL_MS });
     }
   }, []);
@@ -274,6 +279,12 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
       }
       case "round.start": {
         const d = f.data as RoundStartData;
+        // Preload immediately so the 2-second reveal window gives the
+        // browser time to buffer before play() is called at countdown=0.
+        if (audioRef.current) {
+          audioRef.current.src = d.clip_url;
+          audioRef.current.load();
+        }
         if (ratingOpenRef.current) {
           // User is rating the current opening — buffer this frame and
           // apply it when they close the popup.
@@ -368,10 +379,10 @@ export default function MatchPage({ user, modQueueCount, code, initial }: Props)
     if (phase.kind !== "reveal") return;
     if (phase.countdownMs <= 0) {
       // Start the in-match phase. Audio playback begins now.
+      // src was already set (and preloading started) when round.start arrived.
       const r = phase.round;
       if (audioRef.current) {
         try {
-          audioRef.current.src = r.clip_url;
           audioRef.current.currentTime = 0;
           audioRef.current.play()
             .then(() => setAudioBlocked(false))
@@ -982,7 +993,7 @@ function PlayingView({ view, round, playedMs, meID, score, audioBlocked, onResum
         if (queryRef.current !== query) return;
         const items = (body?.data ?? []).slice(0, 8).map((a: any) => ({
           id: a.id,
-          title: a.name || a.title_romaji,
+          title: a.name,
           year: a.year ?? null,
           cover: a.cover_image_url ?? null,
         }));
