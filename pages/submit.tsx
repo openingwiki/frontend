@@ -8,6 +8,24 @@ import CoverUpload from "@/components/CoverUpload";
 import { loadSession } from "@/lib/session";
 import type { TrackKind, AnimeFormat, SingerType, User } from "@/lib/types";
 
+// Persists state in sessionStorage so it survives navigation away and back.
+// Falls back to `initial` on SSR or parse errors.
+function useSessionState<T>(key: string, initial: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(() => {
+    if (typeof window === "undefined") return initial;
+    try {
+      const stored = sessionStorage.getItem(key);
+      return stored !== null ? (JSON.parse(stored) as T) : initial;
+    } catch {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(key, JSON.stringify(value)); } catch {}
+  }, [key, value]);
+  return [value, setValue];
+}
+
 interface Props {
   user: User | null;
   modQueueCount: number;
@@ -33,21 +51,15 @@ async function fetchAnimeItems(q: string): Promise<AutocompleteItem[]> {
   const payload = await res.json();
   const items = Array.isArray(payload.data) ? payload.data : [];
   return items.map((a: any) => {
-    // sublabel: English title (when present) followed by year / format.
-    // The English line lets a user confirm they picked the right anime
-    // even when they're searching in English while the row is keyed
-    // on romaji.
+    // name is already the English title (or romaji fallback) from the API.
+    // sublabel shows year / format for disambiguation.
     const tail = a.year ? `${a.year} · ${(a.format ?? "").toUpperCase().replace("_", " ")}` : "";
-    const english = (a.title_english ?? "").trim();
-    const sublabel = english
-      ? (tail ? `${english} · ${tail}` : english)
-      : (tail || undefined);
     return {
       id: a.id,
       label: a.name,
       coverUrl: a.cover_image_url ?? null,
       iconShape: "square" as const,
-      sublabel,
+      sublabel: tail || undefined,
     };
   });
 }
@@ -138,18 +150,18 @@ function Sidebar({ tab }: { tab: Tab }) {
 
 function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
   const router = useRouter();
-  const [kind, setKind] = useState<TrackKind>("opening");
-  const [title, setTitle] = useState("");
-  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [kind, setKind] = useSessionState<TrackKind>("submit:opening:kind", "opening");
+  const [title, setTitle] = useSessionState("submit:opening:title", "");
+  const [youtubeUrl, setYoutubeUrl] = useSessionState("submit:opening:youtubeUrl", "");
   // sequenceNumber is the OP/ED number. Required when kind is
   // "opening" or "ending" (CHECK constraint added in migration
   // 000014 forbids NULLs for non-OST). Hidden when kind is "ost" —
   // OSTs deliberately don't carry a sequence number. Kept as a
   // string in the input state so the field can be cleared, parsed to
   // a number on submit.
-  const [sequenceNumber, setSequenceNumber] = useState<string>("");
-  const [selectedAnime, setSelectedAnime] = useState<AutocompleteItem | null>(null);
-  const [selectedSinger, setSelectedSinger] = useState<AutocompleteItem | null>(null);
+  const [sequenceNumber, setSequenceNumber] = useSessionState("submit:opening:seqNum", "");
+  const [selectedAnime, setSelectedAnime] = useSessionState<AutocompleteItem | null>("submit:opening:anime", null);
+  const [selectedSinger, setSelectedSinger] = useSessionState<AutocompleteItem | null>("submit:opening:singer", null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -219,6 +231,9 @@ function OpeningPane({ onSwitchTab }: { onSwitchTab: (t: Tab) => void }) {
       return;
     }
 
+    ["submit:opening:kind", "submit:opening:title", "submit:opening:youtubeUrl",
+      "submit:opening:seqNum", "submit:opening:anime", "submit:opening:singer",
+    ].forEach((k) => { try { sessionStorage.removeItem(k); } catch {} });
     router.push(`/?kind=${kind}`);
   };
 
@@ -370,7 +385,7 @@ function AnimePane() {
     tv: "TV", film: "Film", ova_ona: "OVA/ONA", special: "Special",
   };
 
-  const [f, setF] = useState({
+  const [f, setF] = useSessionState("submit:anime:f", {
     title_romaji: "",
     title_english: "",
     year: "", format: "tv" as AnimeFormat,
@@ -379,8 +394,8 @@ function AnimePane() {
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setF((prev) => ({ ...prev, [k]: e.target.value }));
 
-  const [coverKey, setCoverKey] = useState("");
-  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [coverKey, setCoverKey] = useSessionState("submit:anime:coverKey", "");
+  const [coverPreviewUrl, setCoverPreviewUrl] = useSessionState<string | null>("submit:anime:coverPreviewUrl", null);
   const [coverImporting, setCoverImporting] = useState(false);
   const [coverImportErr, setCoverImportErr] = useState<string | null>(null);
 
@@ -620,15 +635,15 @@ function AnimePane() {
 // ---------------------------------------------------------------------------
 
 function SingerPane() {
-  const [f, setF] = useState({
+  const [f, setF] = useSessionState("submit:singer:f", {
     name: "", type: "other" as SingerType,
     reference_url: "",
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setF((prev) => ({ ...prev, [k]: e.target.value }));
 
-  const [coverKey, setCoverKey] = useState("");
-  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [coverKey, setCoverKey] = useSessionState("submit:singer:coverKey", "");
+  const [coverPreviewUrl, setCoverPreviewUrl] = useSessionState<string | null>("submit:singer:coverPreviewUrl", null);
   const [coverImporting, setCoverImporting] = useState(false);
   const [coverImportErr, setCoverImportErr] = useState<string | null>(null);
 
@@ -861,7 +876,7 @@ const TABS: { id: Tab; icon: React.ReactNode; label: string }[] = [
 ];
 
 export default function SubmitPage({ user, modQueueCount }: Props) {
-  const [tab, setTab] = useState<Tab>("opening");
+  const [tab, setTab] = useSessionState<Tab>("submit:tab", "opening");
 
   return (
     <Layout user={user} modQueueCount={modQueueCount} title="Submit · Opening Wiki">
