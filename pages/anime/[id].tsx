@@ -83,14 +83,12 @@ export default function AnimePage({ user, modQueueCount, anime }: Props) {
     return (a.sequence_number ?? 99) - (b.sequence_number ?? 99);
   });
 
-  // Romaji is the canonical title (always present, NOT NULL since
-  // 000009). English is the secondary line beneath it; if there's no
-  // English title, fall back to the catalog `name` so the heading
-  // doesn't lose its English-readable form entirely.
-  const displayName = anime.title_romaji || anime.name;
-  const englishTitle = anime.title_english && anime.title_english !== displayName
-    ? anime.title_english
-    : (anime.name && anime.name !== displayName ? anime.name : null);
+  // English is the primary display title; romaji shown beneath it as a
+  // secondary line (useful on the dedicated page for reference).
+  const displayName = anime.title_english || anime.title_romaji || anime.name;
+  const englishTitle = anime.title_english && anime.title_romaji !== displayName
+    ? anime.title_romaji
+    : null;
   const nativeTitle = anime.title_native;
 
   const leadParts: string[] = [];

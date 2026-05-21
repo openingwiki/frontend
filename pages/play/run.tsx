@@ -679,7 +679,7 @@ function InMatchScreen({ round, run, playedMs, onSubmit, onExit }: { round: Solo
         if (queryRef.current !== query) return;
         const items = (body?.data ?? []).slice(0, 8).map((a: any) => ({
           id: a.id,
-          title: a.name || a.title_romaji,
+          title: a.name,
           year: a.year ?? null,
           cover: a.cover_image_url ?? null,
         }));
