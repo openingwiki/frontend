@@ -49,8 +49,8 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   let initialView: PartyRoomView | null = null;
   try {
     const res = await fetch(
-      `${process.env.BACKEND_URL ?? "http://localhost:8080"}/api/v1/play/party/rooms/${encodeURIComponent(code)}`,
-      { headers: { cookie: ctx.req.headers.cookie ?? "" } },
+      `${process.env.API_BASE_URL || "http://localhost:8080"}/api/v1/play/party/rooms/${encodeURIComponent(code)}`,
+      { headers: session.cookie ? { cookie: session.cookie } : undefined, cache: "no-store" as RequestCache },
     );
     if (res.ok) {
       const body = await res.json();
