@@ -30,6 +30,7 @@ export default function PlayHub({ user, modQueueCount }: Props) {
   // anon visitors can still see what's on offer.
   const endlessHref = user ? "/play/endless" : `/login?next=${encodeURIComponent("/play/endless")}`;
   const pvpHref = user ? "/play/pvp/new" : `/login?next=${encodeURIComponent("/play/pvp/new")}`;
+  const partyHref = user ? "/play/party/new" : `/login?next=${encodeURIComponent("/play/party/new")}`;
   return (
     <Layout user={user} modQueueCount={modQueueCount} title="Play — Opening Wiki">
       <div data-mobile-play-hub style={{ background: SOLO.bg, color: SOLO.fg, minHeight: "calc(100vh - 60px)", fontFamily: SOLO.sans }}>
@@ -40,12 +41,13 @@ export default function PlayHub({ user, modQueueCount }: Props) {
               Pick your <span style={{ color: SOLO.accent }}>mode.</span>
             </h1>
             <p style={{ margin: "14px 0 0", color: SOLO.fg2, fontSize: 15, maxWidth: 620, lineHeight: 1.55 }}>
-              Two ways to play. <strong style={{ color: SOLO.fg, fontWeight: 500 }}>Endless</strong> is a private solo run ranked on a daily leaderboard.
+              Three ways to play. <strong style={{ color: SOLO.fg, fontWeight: 500 }}>Endless</strong> is a private solo run ranked on a daily leaderboard.
               {" "}<strong style={{ color: SOLO.fg, fontWeight: 500 }}>1v1</strong> is a real-time race against a friend.
+              {" "}<strong style={{ color: SOLO.fg, fontWeight: 500 }}>Party</strong> is unlimited players, same clip, speed wins points.
             </p>
           </div>
 
-          <div className="play-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 32 }}>
+          <div className="play-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, marginTop: 32 }}>
             <ModeCard
               href={endlessHref}
               eyebrow="Endless · solo"
@@ -63,6 +65,15 @@ export default function PlayHub({ user, modQueueCount }: Props) {
               desc="Both players, same clip, simultaneous. First to ten correct wins. Configure format and pool in the next step."
               cta="Open 1v1"
               meta={<>casual lobby<br />invite by link</>}
+            />
+            <ModeCard
+              href={partyHref}
+              eyebrow="Party · unlimited"
+              title="Play with"
+              accentWord="everyone."
+              desc="Unlimited players, same clip in sync. Speed wins points each round. Share the link — anyone can join."
+              cta="Open Party"
+              meta={<>no player cap<br />speed-based</>}
             />
           </div>
 
